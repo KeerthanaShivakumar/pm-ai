@@ -14,6 +14,7 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const DEFAULT_CODEX_MODEL = process.env.CODEX_MODEL || "gpt-5.3-codex";
 const jobs = new Map();
+const LOG_PREFIX = "[pm-ai]";
 
 const WORKFLOW_STAGE_ORDER = ["opportunity", "spec", "wireframe", "tickets", "codex"];
 const WORKFLOW_STAGE_META = {
@@ -59,6 +60,87 @@ const MIME_TYPES = {
 
 ensureDir(ARTIFACTS_DIR);
 
+function logInfo(event, meta) {
+  writeLog("log", event, meta);
+}
+
+function logWarn(event, meta) {
+  writeLog("warn", event, meta);
+}
+
+function logError(event, meta) {
+  writeLog("error", event, meta);
+}
+
+function writeLog(method, event, meta) {
+  const logger = typeof console[method] === "function" ? console[method] : console.log;
+  const safeMeta = normalizeLogMeta(meta);
+  if (safeMeta && (typeof safeMeta !== "object" || Object.keys(safeMeta).length > 0)) {
+    logger(LOG_PREFIX, event, JSON.stringify(safeMeta));
+    return;
+  }
+  logger(LOG_PREFIX, event);
+}
+
+function normalizeLogMeta(value, depth = 0, seen = new WeakSet()) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    return value.length > 240 ? `${value.slice(0, 237)}...` : value;
+  }
+  if (typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message
+    };
+  }
+  if (value instanceof Set) {
+    return {
+      type: "Set",
+      size: value.size
+    };
+  }
+  if (value instanceof Map) {
+    return {
+      type: "Map",
+      size: value.size
+    };
+  }
+  if (depth >= 2) {
+    if (Array.isArray(value)) {
+      return `[array:${value.length}]`;
+    }
+    return "[object]";
+  }
+  if (typeof value !== "object") {
+    return String(value);
+  }
+  if (seen.has(value)) {
+    return "[circular]";
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.slice(0, 8).map((item) => normalizeLogMeta(item, depth + 1, seen));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .slice(0, 16)
+      .map(([key, item]) => [key, normalizeLogMeta(item, depth + 1, seen)])
+      .filter(([, item]) => item !== undefined)
+  );
+}
+
 async function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -67,6 +149,11 @@ async function readJsonBody(req) {
     req.on("data", (chunk) => {
       totalBytes += chunk.length;
       if (totalBytes > MAX_BODY_BYTES) {
+        logWarn("http.body_too_large", {
+          maxBytes: MAX_BODY_BYTES,
+          method: req.method,
+          url: req.url
+        });
         reject(new Error("Request body is too large."));
         req.destroy();
         return;
@@ -78,11 +165,23 @@ async function readJsonBody(req) {
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch (error) {
+        logWarn("http.invalid_json_body", {
+          method: req.method,
+          url: req.url,
+          message: error.message
+        });
         reject(new Error("Request body must be valid JSON."));
       }
     });
 
-    req.on("error", reject);
+    req.on("error", (error) => {
+      logWarn("http.request_stream_error", {
+        method: req.method,
+        url: req.url,
+        message: error.message
+      });
+      reject(error);
+    });
   });
 }
 
@@ -90,10 +189,17 @@ function serveFile(res, requestedPath, allowedRoot) {
   const safePath = path.resolve(requestedPath);
   const safeRoot = path.resolve(allowedRoot);
   if (!isPathInsideRoot(safePath, safeRoot)) {
+    logWarn("static.access_denied", {
+      requestedPath: safePath,
+      allowedRoot: safeRoot
+    });
     return sendJson(res, 403, { error: "Access denied." });
   }
 
   if (!fs.existsSync(safePath) || !fs.statSync(safePath).isFile()) {
+    logWarn("static.not_found", {
+      requestedPath: safePath
+    });
     return sendJson(res, 404, { error: "File not found." });
   }
 
@@ -289,6 +395,20 @@ function mergeArtifacts(existingArtifacts, nextArtifacts) {
   return Array.from(byName.values());
 }
 
+function summarizeInputForLogs(input) {
+  return {
+    productName: asString(input?.productName) || "PM.ai",
+    hasTargetUsers: Boolean(asString(input?.targetUsers)),
+    productContextChars: asString(input?.productContext).length,
+    interviewsChars: asString(input?.interviews).length,
+    feedbackChars: asString(input?.feedback).length,
+    usageDataChars: asString(input?.usageData).length,
+    implementationNotesChars: asString(input?.implementationNotes).length,
+    runCodex: Boolean(input?.runCodex),
+    hasWorkspacePath: Boolean(asString(input?.codexWorkspacePath))
+  };
+}
+
 module.exports = {
   fs,
   path,
@@ -301,6 +421,7 @@ module.exports = {
   OPENAI_RESPONSES_URL,
   DEFAULT_OPENAI_MODEL,
   DEFAULT_CODEX_MODEL,
+  LOG_PREFIX,
   jobs,
   WORKFLOW_STAGE_ORDER,
   WORKFLOW_STAGE_META,
@@ -325,5 +446,9 @@ module.exports = {
   stripCodeFence,
   escapeRegExp,
   createHttpError,
-  mergeArtifacts
+  mergeArtifacts,
+  logInfo,
+  logWarn,
+  logError,
+  summarizeInputForLogs
 };

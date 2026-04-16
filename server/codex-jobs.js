@@ -8,7 +8,10 @@ const {
   resolveWorkspacePath,
   asString,
   mergeArtifacts,
-  sendJson
+  sendJson,
+  logInfo,
+  logWarn,
+  logError
 } = require("./common");
 const { renderCodexCommandPreview } = require("./render");
 const { safelyExtractResponseText } = require("./analysis");
@@ -24,14 +27,27 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
   function handleJobStream(req, res, jobId) {
     const job = jobs.get(jobId);
     if (!job) {
+      logWarn("codex.stream_missing_job", {
+        jobId
+      });
       return sendJson(res, 404, { error: "Job not found." });
     }
 
+    logInfo("codex.stream_opened", {
+      jobId,
+      runId: job.runId,
+      status: job.status
+    });
     const closeStream = openSseStream(res);
     writeSseEvent(res, "snapshot", serializeJob(job));
 
     if (job.status !== "running") {
       writeSseEvent(res, "done", serializeJob(job));
+      logInfo("codex.stream_closed_immediately", {
+        jobId,
+        runId: job.runId,
+        status: job.status
+      });
       closeStream();
       return undefined;
     }
@@ -44,13 +60,28 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     req.on("close", () => {
       clearInterval(keepAlive);
       job.clients.delete(res);
+      logInfo("codex.stream_closed", {
+        jobId,
+        runId: job.runId,
+        status: job.status
+      });
       closeStream();
     });
     return undefined;
   }
 
   function startCodexResponsesJob({ input, runId, artifactBundle, prompt, autoRequested = false }) {
+    logInfo("codex.job_requested", {
+      runId,
+      autoRequested,
+      runCodex: Boolean(input.runCodex),
+      hasApiKey: Boolean(process.env.OPENAI_API_KEY)
+    });
     if (autoRequested && !input.runCodex) {
+      logWarn("codex.job_skipped", {
+        runId,
+        reason: "auto_requested_without_run_codex_flag"
+      });
       return {
         status: "idle",
         reason: "Codex auto-run was not requested."
@@ -58,6 +89,10 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     }
 
     if (!process.env.OPENAI_API_KEY) {
+      logWarn("codex.job_disabled", {
+        runId,
+        reason: "missing_openai_api_key"
+      });
       return {
         status: "disabled",
         reason: "Set OPENAI_API_KEY to stream implementation output from the Responses API."
@@ -65,6 +100,10 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     }
 
     if (autoRequested && process.env.ALLOW_CODEX_RUN !== "1") {
+      logWarn("codex.job_disabled", {
+        runId,
+        reason: "auto_run_not_enabled"
+      });
       return {
         status: "disabled",
         reason: "Set ALLOW_CODEX_RUN=1 to auto-launch the final coding step after approval."
@@ -104,11 +143,23 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     jobs.set(job.id, job);
     fs.writeFileSync(job.logPath, "", "utf8");
     persistCodexJobArtifacts(job);
+    logInfo("codex.job_started", {
+      jobId: job.id,
+      runId,
+      model: job.model,
+      autoRequested,
+      workspacePath
+    });
 
     void performCodexResponsesRun(job, {
       prompt,
       workspacePath
     }).catch((error) => {
+      logError("codex.job_unhandled_failure", {
+        jobId: job.id,
+        runId: job.runId,
+        message: error.message
+      });
       failCodexJob(job, error.message);
     });
 
@@ -116,6 +167,13 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
   }
 
   async function performCodexResponsesRun(job, { prompt, workspacePath }) {
+    logInfo("codex.responses_request_started", {
+      jobId: job.id,
+      runId: job.runId,
+      model: job.model,
+      workspacePath,
+      promptChars: asString(prompt).length
+    });
     const response = await fetch(OPENAI_RESPONSES_URL, {
       method: "POST",
       headers: {
@@ -149,11 +207,21 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     });
 
     if (!response.ok) {
+      logWarn("codex.responses_request_failed", {
+        jobId: job.id,
+        runId: job.runId,
+        status: response.status
+      });
       throw new Error(await extractOpenAIErrorMessage(response));
     }
     if (!response.body) {
       throw new Error("OpenAI returned no streaming body for the coding run.");
     }
+    logInfo("codex.responses_stream_connected", {
+      jobId: job.id,
+      runId: job.runId,
+      status: response.status
+    });
 
     const decoder = new TextDecoder();
     let buffer = "";
@@ -239,6 +307,11 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
       if (completedText && completedText.length > job.outputText.length) {
         replaceCodexOutput(job, completedText);
       }
+      logInfo("codex.responses_completed_event", {
+        jobId: job.id,
+        runId: job.runId,
+        responseId: job.responseId
+      });
       finishCodexJob(job);
       return;
     }
@@ -246,6 +319,12 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     if (type === "response.failed" || type === "response.error" || type === "error") {
       const message =
         payload?.error?.message || payload?.message || payload?.raw || "The coding stream failed.";
+      logWarn("codex.responses_failed_event", {
+        jobId: job.id,
+        runId: job.runId,
+        type,
+        message
+      });
       failCodexJob(job, message);
     }
   }
@@ -292,6 +371,13 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     job.completedAt = new Date().toISOString();
     persistCodexJobArtifacts(job);
     syncJobIntoWorkflow(job);
+    logInfo("codex.job_completed", {
+      jobId: job.id,
+      runId: job.runId,
+      responseId: job.responseId,
+      files: job.files.length,
+      outputChars: job.outputText.length
+    });
     closeCodexJobStreams(job, "done");
   }
 
@@ -308,6 +394,11 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     fs.appendFileSync(job.logPath, `\n\n[error] ${job.error}\n`, "utf8");
     persistCodexJobArtifacts(job);
     syncJobIntoWorkflow(job);
+    logError("codex.job_failed", {
+      jobId: job.id,
+      runId: job.runId,
+      message: job.error
+    });
     closeCodexJobStreams(job, "failed");
   }
 
@@ -320,6 +411,10 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
   function syncJobIntoWorkflow(job) {
     const workflowPath = path.join(getWorkflowRunDir(job.runId), "workflow.json");
     if (!fs.existsSync(workflowPath)) {
+      logWarn("codex.job_workflow_missing", {
+        jobId: job.id,
+        runId: job.runId
+      });
       return;
     }
 
@@ -348,6 +443,11 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
       }
     ]);
     saveWorkflow(workflow);
+    logInfo("codex.job_synced_to_workflow", {
+      jobId: job.id,
+      runId: job.runId,
+      artifacts: workflow.artifacts.length
+    });
   }
 
   function closeCodexJobStreams(job, eventName) {

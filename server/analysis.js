@@ -13,7 +13,10 @@ const {
   asString,
   truncate,
   stripCodeFence,
-  escapeRegExp
+  escapeRegExp,
+  logInfo,
+  logWarn,
+  summarizeInputForLogs
 } = require("./common");
 const {
   renderBriefMarkdown,
@@ -26,24 +29,45 @@ async function generateAnalysisBundle(input) {
   const warnings = [];
   let mode = "demo";
   let analysis;
+  logInfo("analysis.bundle_started", {
+    ...summarizeInputForLogs(input),
+    hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY)
+  });
 
   if (process.env.OPENAI_API_KEY) {
     try {
       analysis = await analyzeWithOpenAI(input);
       mode = "openai";
+      logInfo("analysis.bundle_openai_succeeded", {
+        model: DEFAULT_OPENAI_MODEL
+      });
     } catch (error) {
       warnings.push(`OpenAI call failed, so PM.ai fell back to demo synthesis: ${error.message}`);
       analysis = buildDemoAnalysis(input);
       mode = "demo-fallback";
+      logWarn("analysis.bundle_openai_failed", {
+        model: DEFAULT_OPENAI_MODEL,
+        message: error.message
+      });
     }
   } else {
     analysis = buildDemoAnalysis(input);
     warnings.push("OPENAI_API_KEY is not set, so PM.ai is running in deterministic demo mode.");
+    logWarn("analysis.bundle_demo_mode", {
+      reason: "missing_openai_api_key"
+    });
   }
 
   analysis = normalizeAnalysis(analysis, input);
   analysis.codexKickoff.prompt = renderCodexPrompt(input, analysis);
   analysis.codexKickoff.commandPreview = renderCodexCommandPreview();
+  logInfo("analysis.bundle_completed", {
+    mode,
+    warnings: warnings.length,
+    evidence: analysis.evidence.length,
+    featureCandidates: analysis.featureCandidates.length,
+    tickets: analysis.tickets.length
+  });
 
   return {
     analysis,
@@ -53,6 +77,10 @@ async function generateAnalysisBundle(input) {
 }
 
 async function analyzeWithOpenAI(input) {
+  logInfo("analysis.openai_request_started", {
+    model: DEFAULT_OPENAI_MODEL,
+    ...summarizeInputForLogs(input)
+  });
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
     headers: {
@@ -96,8 +124,19 @@ async function analyzeWithOpenAI(input) {
   const data = await response.json();
   if (!response.ok) {
     const message = data?.error?.message || `Request failed with status ${response.status}`;
+    logWarn("analysis.openai_request_failed", {
+      model: DEFAULT_OPENAI_MODEL,
+      status: response.status,
+      message
+    });
     throw new Error(message);
   }
+  logInfo("analysis.openai_request_completed", {
+    model: DEFAULT_OPENAI_MODEL,
+    status: response.status,
+    responseId: asString(data?.id),
+    hasParsedOutput: Boolean(data.output_parsed)
+  });
 
   if (data.output_parsed) {
     return data.output_parsed;
@@ -701,6 +740,13 @@ function writeArtifacts(runId, input, analysis, meta) {
       path: absolutePath,
       url: `/artifacts/${runId}/${file.name}`
     };
+  });
+  logInfo("analysis.artifacts_written", {
+    runId,
+    runDir,
+    mode: meta.mode,
+    warnings: Array.isArray(meta.warnings) ? meta.warnings.length : 0,
+    files: writtenFiles.map((file) => file.name)
   });
 
   return {

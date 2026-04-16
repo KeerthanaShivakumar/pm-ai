@@ -10,7 +10,7 @@ import {
   getFormPayload,
   labelForTarget
 } from "./drafts.js";
-import { cloneJson } from "./utils.js";
+import { cloneJson, logUi } from "./utils.js";
 import { renderCodeViewer, renderCodexJob, renderRunMeta, renderWorkflowShell } from "./render.js";
 
 const BUILD_PACK_STAGES = ["spec", "wireframe", "tickets", "codex"];
@@ -18,6 +18,7 @@ const BUILD_PACK_STAGES = ["spec", "wireframe", "tickets", "codex"];
 export function bootPmApp(doc = document) {
   const dom = getDom(doc);
   const state = createState();
+  logUi("app.boot");
 
   syncLayoutState(dom, state);
   bindFileImports(doc, dom.statusBanner);
@@ -82,6 +83,11 @@ function bindFileImports(doc, statusBanner) {
       const target = doc.querySelector(`#${targetId}`);
       target.value = `${target.value}${contents.join("")}`.trim();
       event.target.value = "";
+      logUi("input.files_imported", {
+        targetId,
+        files: files.map((file) => file.name),
+        count: files.length
+      });
       showBanner(
         statusBanner,
         `Imported ${files.length} file${files.length === 1 ? "" : "s"} into ${labelForTarget(targetId)}.`,
@@ -94,6 +100,9 @@ function bindFileImports(doc, statusBanner) {
 function bindTopLevelActions(doc, dom, state) {
   dom.sampleButton.addEventListener("click", () => {
     applySampleData(doc, dom.samplePreset.value);
+    logUi("input.sample_loaded", {
+      samplePreset: dom.samplePreset.value
+    });
     showBanner(dom.statusBanner, `Loaded the ${SAMPLE_DATASETS[dom.samplePreset.value].label} preset.`, false);
   });
 
@@ -102,6 +111,10 @@ function bindTopLevelActions(doc, dom, state) {
       return;
     }
     state.screen = state.lastWorkflowScreen || "recommendation";
+    logUi("workflow.resume_requested", {
+      workflowId: state.workflow.workflowId,
+      screen: state.screen
+    });
     renderWorkflow(dom, state, state.workflow);
   });
 
@@ -110,11 +123,13 @@ function bindTopLevelActions(doc, dom, state) {
     if (state.health?.suggestedCodexWorkspace) {
       doc.querySelector("#codexWorkspacePath").value = state.health.suggestedCodexWorkspace;
     }
+    logUi("input.form_cleared");
     showBanner(dom.statusBanner, "Cleared the form.", false);
   });
 
   dom.form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    logUi("workflow.create_submit");
     setLoading(dom, true);
     disconnectJobStream(state);
 
@@ -129,9 +144,19 @@ function bindTopLevelActions(doc, dom, state) {
 
       state.activeStage = "opportunity";
       state.screen = "recommendation";
+      logUi("workflow.create_succeeded", {
+        workflowId: workflow.workflowId
+      });
       renderWorkflow(dom, state, workflow);
       showBanner(dom.statusBanner, "Workflow created. Review and approve the opportunity before moving downstream.", false);
     } catch (error) {
+      logUi(
+        "workflow.create_failed",
+        {
+          message: error.message
+        },
+        "warn"
+      );
       showBanner(dom.statusBanner, error.message, true);
     } finally {
       setLoading(dom, false);
@@ -150,9 +175,18 @@ function bindWorkflowActions(dom, state) {
     const stageKey = actionTarget.dataset.stage || state.activeStage;
 
     try {
+      logUi("workflow.action", {
+        action,
+        stageKey,
+        screen: state.screen,
+        workflowId: state.workflow.workflowId
+      });
       if (action === "open-screen") {
         state.screen = actionTarget.dataset.screen || state.screen;
         normalizeScreenState(state);
+        logUi("workflow.screen_opened", {
+          screen: state.screen
+        });
         renderWorkflow(dom, state, state.workflow);
         return;
       }
@@ -160,6 +194,9 @@ function bindWorkflowActions(dom, state) {
       if (action === "open-intake") {
         state.lastWorkflowScreen = state.screen;
         state.screen = "intake";
+        logUi("workflow.intake_opened", {
+          workflowId: state.workflow.workflowId
+        });
         syncLayoutState(dom, state);
         return;
       }
@@ -168,6 +205,10 @@ function bindWorkflowActions(dom, state) {
         state.activeStage = stageKey;
         state.screen = screenForStage(stageKey);
         normalizeScreenState(state);
+        logUi("workflow.stage_opened", {
+          stageKey,
+          screen: state.screen
+        });
         renderWorkflow(dom, state, state.workflow);
         return;
       }
@@ -175,6 +216,9 @@ function bindWorkflowActions(dom, state) {
       if (action === "select-code-file") {
         state.codexView.selectedPath = actionTarget.dataset.path || "";
         state.screen = "live-build";
+        logUi("codex.file_selected", {
+          path: state.codexView.selectedPath
+        });
         renderLiveCodexPanels(dom, state);
         return;
       }
@@ -184,6 +228,10 @@ function bindWorkflowActions(dom, state) {
         draft.frames.push(defaultFrameDraft(draft.frames.length + 1));
         const workflow = await persistStageDraft(state, "wireframe", draft);
         state.activeStage = "wireframe";
+        logUi("workflow.wireframe_frame_added", {
+          workflowId: workflow.workflowId,
+          frames: draft.frames.length
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Added a wireframe frame.", false);
         return;
@@ -198,6 +246,11 @@ function bindWorkflowActions(dom, state) {
         draft.frames.splice(frameIndex, 1);
         const workflow = await persistStageDraft(state, "wireframe", draft);
         state.activeStage = "wireframe";
+        logUi("workflow.wireframe_frame_removed", {
+          workflowId: workflow.workflowId,
+          frameIndex,
+          frames: draft.frames.length
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Removed the frame.", false);
         return;
@@ -209,6 +262,11 @@ function bindWorkflowActions(dom, state) {
         draft.frames[frameIndex].components.push(defaultComponentDraft());
         const workflow = await persistStageDraft(state, "wireframe", draft);
         state.activeStage = "wireframe";
+        logUi("workflow.wireframe_component_added", {
+          workflowId: workflow.workflowId,
+          frameIndex,
+          components: draft.frames[frameIndex].components.length
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Added a component to the frame.", false);
         return;
@@ -224,6 +282,12 @@ function bindWorkflowActions(dom, state) {
         draft.frames[frameIndex].components.splice(componentIndex, 1);
         const workflow = await persistStageDraft(state, "wireframe", draft);
         state.activeStage = "wireframe";
+        logUi("workflow.wireframe_component_removed", {
+          workflowId: workflow.workflowId,
+          frameIndex,
+          componentIndex,
+          components: draft.frames[frameIndex].components.length
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Removed the component.", false);
         return;
@@ -234,6 +298,10 @@ function bindWorkflowActions(dom, state) {
         draft.push(defaultTicketDraft(draft.length + 1));
         const workflow = await persistStageDraft(state, "tickets", draft);
         state.activeStage = "tickets";
+        logUi("workflow.ticket_added", {
+          workflowId: workflow.workflowId,
+          tickets: draft.length
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Added a ticket.", false);
         return;
@@ -248,6 +316,11 @@ function bindWorkflowActions(dom, state) {
         draft.splice(ticketIndex, 1);
         const workflow = await persistStageDraft(state, "tickets", draft);
         state.activeStage = "tickets";
+        logUi("workflow.ticket_removed", {
+          workflowId: workflow.workflowId,
+          ticketIndex,
+          tickets: draft.length
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Removed the ticket.", false);
         return;
@@ -262,6 +335,11 @@ function bindWorkflowActions(dom, state) {
         }
         const workflow = await persistStageDraft(state, stageKey, snapshot);
         state.activeStage = stageKey;
+        logUi("workflow.history_snapshot_loaded", {
+          workflowId: workflow.workflowId,
+          stageKey,
+          historyIndex
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, `Loaded ${state.workflow.stages[stageKey].label} from version history.`, false);
         return;
@@ -275,6 +353,10 @@ function bindWorkflowActions(dom, state) {
         );
         state.activeStage = stageKey;
         state.screen = screenForStage(stageKey);
+        logUi("workflow.stage_generated", {
+          workflowId: workflow.workflowId,
+          stageKey
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, `${workflow.stages[stageKey].label} draft generated.`, false);
         return;
@@ -282,6 +364,10 @@ function bindWorkflowActions(dom, state) {
 
       if (action === "save-stage") {
         const workflow = await persistCurrentStageDraft(dom, state, stageKey);
+        logUi("workflow.stage_saved", {
+          workflowId: workflow.workflowId,
+          stageKey
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, `${workflow.stages[stageKey].label} draft saved.`, false);
         return;
@@ -295,6 +381,11 @@ function bindWorkflowActions(dom, state) {
         );
         state.activeStage = nextStageKey(stageKey) || stageKey;
         state.screen = screenAfterApproval(stageKey, workflow);
+        logUi("workflow.stage_approved", {
+          workflowId: workflow.workflowId,
+          stageKey,
+          nextScreen: state.screen
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, `${workflow.stages[stageKey].label} approved.`, false);
         return;
@@ -303,6 +394,15 @@ function bindWorkflowActions(dom, state) {
       if (action === "launch-codex") {
         const codexStage = state.workflow?.stages?.codex;
         if (!codexStage?.approved || codexStage.stale) {
+          logUi(
+            "workflow.codex_launch_blocked",
+            {
+              workflowId: state.workflow.workflowId,
+              stale: Boolean(codexStage?.stale),
+              approved: Boolean(codexStage?.approved)
+            },
+            "warn"
+          );
           showBanner(
             dom.statusBanner,
             codexStage?.stale
@@ -322,6 +422,10 @@ function bindWorkflowActions(dom, state) {
         );
         state.screen = "live-build";
         state.activeStage = "codex";
+        logUi("workflow.codex_launched", {
+          workflowId: workflow.workflowId,
+          jobId: workflow.codexJob?.id || ""
+        });
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Codex kickoff launched.", false);
         return;
@@ -329,9 +433,22 @@ function bindWorkflowActions(dom, state) {
 
       if (action === "copy-prompt") {
         await navigator.clipboard.writeText(state.latestPrompt);
+        logUi("workflow.codex_prompt_copied", {
+          workflowId: state.workflow.workflowId,
+          promptChars: state.latestPrompt.length
+        });
         showBanner(dom.statusBanner, "Copied the approved Codex prompt.", false);
       }
     } catch (error) {
+      logUi(
+        "workflow.action_failed",
+        {
+          action,
+          stageKey,
+          message: error.message
+        },
+        "warn"
+      );
       showBanner(dom.statusBanner, error.message, true);
     } finally {
       setStageBusy(dom, stageKey, false);
@@ -341,8 +458,14 @@ function bindWorkflowActions(dom, state) {
 
 async function loadHealth(dom, state) {
   try {
+    logUi("health.load_started");
     const data = await apiJson("/api/health");
     state.health = data;
+    logUi("health.load_completed", {
+      mode: data.mode,
+      defaultOpenAiModel: data.defaultOpenAiModel,
+      defaultCodexModel: data.defaultCodexModel
+    });
     dom.modeHint.textContent =
       data.mode === "openai"
         ? `Live OpenAI mode is active with ${data.defaultOpenAiModel}.`
@@ -353,6 +476,13 @@ async function loadHealth(dom, state) {
       workspaceInput.value = data.suggestedCodexWorkspace;
     }
   } catch (error) {
+    logUi(
+      "health.load_failed",
+      {
+        message: error.message
+      },
+      "warn"
+    );
     dom.modeHint.textContent = "Runtime check failed. The app can still run locally if the server is healthy.";
   }
 }
@@ -366,6 +496,12 @@ function renderWorkflow(dom, state, workflow) {
   }
   syncCodexView(state, workflow.codexJob);
   syncLayoutState(dom, state);
+  logUi("workflow.rendered", {
+    workflowId: workflow.workflowId,
+    screen: state.screen,
+    activeStage: state.activeStage,
+    codexJobStatus: workflow.codexJob?.status || "idle"
+  });
   dom.emptyState.classList.add("hidden");
   dom.results.classList.remove("hidden");
   dom.runMeta.innerHTML = renderRunMeta(workflow, state.activeStage);
@@ -419,6 +555,10 @@ function trackJobStream(dom, state, job) {
 
   disconnectJobStream(state);
   state.codexView.connection = "connecting";
+  logUi("codex.stream_tracking_started", {
+    jobId: job.id,
+    workflowId: state.workflow?.workflowId
+  });
 
   state.jobStream = subscribeToJobStream(job.id, {
     onSnapshot: (snapshot) => updateLiveJob(dom, state, snapshot),
@@ -426,16 +566,35 @@ function trackJobStream(dom, state, job) {
     onDelta: (payload) => updateLiveJobDelta(dom, state, payload),
     onDone: (snapshot) => {
       updateLiveJob(dom, state, snapshot);
+      logUi("codex.stream_done", {
+        jobId: snapshot?.id || job.id,
+        status: snapshot?.status || "completed"
+      });
       disconnectJobStream(state);
       void refreshWorkflow(dom, state);
     },
     onFailed: (snapshot) => {
       updateLiveJob(dom, state, snapshot);
+      logUi(
+        "codex.stream_failed",
+        {
+          jobId: snapshot?.id || job.id,
+          error: snapshot?.error || ""
+        },
+        "warn"
+      );
       disconnectJobStream(state);
       void refreshWorkflow(dom, state);
     },
     onError: () => {
       state.codexView.connection = "reconnecting";
+      logUi(
+        "codex.stream_error",
+        {
+          jobId: job.id
+        },
+        "warn"
+      );
       renderLiveCodexPanels(dom, state);
     }
   });
@@ -443,6 +602,9 @@ function trackJobStream(dom, state, job) {
 
 function disconnectJobStream(state) {
   if (state.jobStream) {
+    logUi("codex.stream_disconnected", {
+      jobId: state.codexView.jobId
+    });
     state.jobStream.close();
     state.jobStream = null;
   }
@@ -488,9 +650,23 @@ async function refreshWorkflow(dom, state) {
   }
 
   try {
+    logUi("workflow.refresh_started", {
+      workflowId: state.workflow.workflowId
+    });
     const workflow = await apiJson(`/api/workflows/${encodeURIComponent(state.workflow.workflowId)}`);
+    logUi("workflow.refresh_completed", {
+      workflowId: workflow.workflowId
+    });
     renderWorkflow(dom, state, workflow);
   } catch (error) {
+    logUi(
+      "workflow.refresh_failed",
+      {
+        workflowId: state.workflow.workflowId,
+        message: error.message
+      },
+      "warn"
+    );
     return;
   }
 }
@@ -503,9 +679,18 @@ async function persistCurrentStageDraft(dom, state, stageKey) {
 async function persistStageDraft(state, stageKey, draftOverride) {
   const draft = draftOverride || collectStageDraft(document.querySelector("#results"), state.workflow, stageKey);
   if (!draft) {
+    logUi("workflow.stage_persist_skipped", {
+      workflowId: state.workflow?.workflowId,
+      stageKey,
+      reason: "no_draft"
+    });
     return state.workflow;
   }
 
+  logUi("workflow.stage_persist_started", {
+    workflowId: state.workflow.workflowId,
+    stageKey
+  });
   const workflow = await apiJson(
     `/api/workflows/${encodeURIComponent(state.workflow.workflowId)}/stages/${encodeURIComponent(stageKey)}`,
     {
@@ -517,6 +702,10 @@ async function persistStageDraft(state, stageKey, draftOverride) {
     }
   );
   state.workflow = workflow;
+  logUi("workflow.stage_persist_completed", {
+    workflowId: workflow.workflowId,
+    stageKey
+  });
   return workflow;
 }
 

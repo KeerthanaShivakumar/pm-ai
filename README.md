@@ -71,6 +71,22 @@ npm start
 
 The UI includes a `Codex workspace path` field. PM.ai uses that as repo context inside the generated prompt, then streams model output back into the in-app code viewer while also writing the raw output and parsed file blocks into the run artifacts.
 
+## Logging and observability
+
+PM.ai now logs the main runtime transitions on both the server and the client:
+
+- server logs use the `[pm-ai]` prefix
+- browser logs use the `[pm-ai-ui]` prefix
+- request routing, workflow stage transitions, Codex stream lifecycle, and failure paths are logged
+- raw customer transcripts and full prompts are not written into logs; the app logs counts, IDs, statuses, and payload sizes instead
+
+This makes it easier to debug:
+
+- workflow creation and stage generation issues
+- stale downstream stage invalidation
+- Codex launch gating and live stream failures
+- Hugging Face startup and request handling problems
+
 ## Deployment
 
 ### Generic hosting
@@ -126,5 +142,6 @@ If the live coding step runs, the same run folder also gets a `codex/` subdirect
 
 - This MVP intentionally uses no external npm dependencies.
 - Local `.env` loading is built in; no `dotenv` package is required.
+- Structured logging is built in; no separate logging package is required.
 - File uploads are read in the browser and merged into the appropriate textarea before submission.
 - The app is designed as a thin local prototype you can evolve into a fuller product workflow.

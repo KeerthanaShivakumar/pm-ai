@@ -16,7 +16,11 @@ const {
   sendJson,
   resolveWorkspacePath,
   buildRunId,
-  jobs
+  jobs,
+  logInfo,
+  logWarn,
+  logError,
+  summarizeInputForLogs
 } = require("./server/common");
 const {
   generateAnalysisBundle,
@@ -63,8 +67,15 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
     const routes = matchRoutes(url.pathname);
+    logInfo("http.request", {
+      method: req.method,
+      path: url.pathname
+    });
 
     if (req.method === "GET" && url.pathname === "/api/health") {
+      logInfo("health.check", {
+        mode: process.env.OPENAI_API_KEY ? "openai" : "demo"
+      });
       return sendJson(res, 200, {
         ok: true,
         mode: process.env.OPENAI_API_KEY ? "openai" : "demo",
@@ -111,8 +122,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && routes.job) {
       const job = jobs.get(routes.job.jobId);
       if (!job) {
+        logWarn("codex.job.lookup_missing", {
+          jobId: routes.job.jobId
+        });
         return sendJson(res, 404, { error: "Job not found." });
       }
+      logInfo("codex.job.lookup", {
+        jobId: routes.job.jobId,
+        status: job.status
+      });
       return sendJson(res, 200, codexJobsService.serializeJob(job));
     }
 
@@ -125,12 +143,26 @@ const server = http.createServer(async (req, res) => {
       return serveFile(res, `${PUBLIC_DIR}${relativePath}`, PUBLIC_DIR);
     }
 
+    logWarn("http.route_not_found", {
+      method: req.method,
+      path: url.pathname
+    });
     return sendJson(res, 404, { error: "Route not found." });
   } catch (error) {
     if ((error.statusCode || 500) >= 500) {
-      console.error(error);
+      logError("http.request_failed", {
+        method: req.method,
+        url: req.url,
+        statusCode: error.statusCode || 500,
+        message: error.message
+      });
     } else {
-      console.warn(`${req.method || "REQUEST"} ${req.url || ""} -> ${error.statusCode || 400}: ${error.publicMessage || error.message}`);
+      logWarn("http.request_rejected", {
+        method: req.method || "REQUEST",
+        url: req.url || "",
+        statusCode: error.statusCode || 400,
+        message: error.publicMessage || error.message
+      });
     }
     return sendJson(res, error.statusCode || 500, {
       error: error.publicMessage || "Unexpected server error.",
@@ -191,7 +223,11 @@ function matchRoutes(pathname) {
 
 async function handleAnalyze(req, res) {
   const input = normalizeInput(await readJsonBody(req));
+  logInfo("analysis.request_received", summarizeInputForLogs(input));
   if (!hasMinimumInput(input)) {
+    logWarn("analysis.request_rejected", {
+      reason: "missing_minimum_input"
+    });
     return sendJson(res, 400, {
       error: "Add at least one meaningful customer signal or product context before running PM.ai."
     });
@@ -207,6 +243,13 @@ async function handleAnalyze(req, res) {
     prompt: analysis.codexKickoff.prompt,
     autoRequested: true
   });
+  logInfo("analysis.request_completed", {
+    runId,
+    mode,
+    warnings: warnings.length,
+    artifacts: artifactBundle.files.length,
+    codexJobStatus: codexJob?.status || "unknown"
+  });
 
   return sendJson(res, 200, {
     ok: true,
@@ -221,51 +264,105 @@ async function handleAnalyze(req, res) {
 
 async function handleCreateWorkflow(req, res) {
   const input = normalizeInput(await readJsonBody(req));
+  logInfo("workflow.create_request", summarizeInputForLogs(input));
   if (!hasMinimumInput(input)) {
+    logWarn("workflow.create_rejected", {
+      reason: "missing_minimum_input"
+    });
     return sendJson(res, 400, {
       error: "Add at least one meaningful customer signal or product context before starting a workflow."
     });
   }
 
-  return sendJson(res, 201, serializeWorkflow(await createWorkflow(input)));
+  const workflow = await createWorkflow(input);
+  logInfo("workflow.created", {
+    workflowId: workflow.id
+  });
+  return sendJson(res, 201, serializeWorkflow(workflow));
 }
 
 function handleGetWorkflow(res, workflowId) {
+  logInfo("workflow.fetch", {
+    workflowId
+  });
   return sendJson(res, 200, serializeWorkflow(readWorkflow(workflowId)));
 }
 
 async function handleGenerateWorkflowStage(res, workflowId, stageKey) {
+  logInfo("workflow.stage_generate_request", {
+    workflowId,
+    stageKey
+  });
   const workflow = await generateWorkflowStage(readWorkflow(workflowId), stageKey);
   saveWorkflow(workflow, `${WORKFLOW_STAGE_META[stageKey].label} draft regenerated.`);
+  logInfo("workflow.stage_generated", {
+    workflowId,
+    stageKey,
+    version: workflow.stages?.[stageKey]?.version || 0
+  });
   return sendJson(res, 200, serializeWorkflow(workflow));
 }
 
 async function handleUpdateWorkflowStage(req, res, workflowId, stageKey) {
   const payload = await readJsonBody(req);
+  logInfo("workflow.stage_update_request", {
+    workflowId,
+    stageKey
+  });
   const workflow = updateWorkflowStage(readWorkflow(workflowId), stageKey, payload?.draft || payload);
   saveWorkflow(workflow, `${WORKFLOW_STAGE_META[stageKey].label} draft updated.`);
+  logInfo("workflow.stage_updated", {
+    workflowId,
+    stageKey,
+    version: workflow.stages?.[stageKey]?.version || 0
+  });
   return sendJson(res, 200, serializeWorkflow(workflow));
 }
 
 function handleApproveWorkflowStage(res, workflowId, stageKey) {
+  logInfo("workflow.stage_approve_request", {
+    workflowId,
+    stageKey
+  });
   const workflow = approveWorkflowStage(readWorkflow(workflowId), stageKey);
   saveWorkflow(workflow, `${WORKFLOW_STAGE_META[stageKey].label} approved.`);
+  logInfo("workflow.stage_approved", {
+    workflowId,
+    stageKey,
+    approvedVersion: workflow.stages?.[stageKey]?.approvedVersion || null
+  });
   return sendJson(res, 200, serializeWorkflow(workflow));
 }
 
 function handleWorkflowCodexRun(res, workflowId) {
+  logInfo("workflow.codex_run_request", {
+    workflowId
+  });
   const workflow = runWorkflowCodex(readWorkflow(workflowId));
   saveWorkflow(workflow, "Codex launch requested.");
+  logInfo("workflow.codex_run_started", {
+    workflowId,
+    jobId: workflow.codexJob?.id || "",
+    status: workflow.codexJob?.status || "unknown"
+  });
   return sendJson(res, 200, serializeWorkflow(workflow));
 }
 
 function startServer() {
   server.listen(PORT, HOST, () => {
-    console.log(`PM.ai is running at http://${HOST}:${PORT}`);
+    logInfo("server.started", {
+      host: HOST,
+      port: PORT,
+      url: `http://${HOST}:${PORT}`
+    });
   });
 
   server.on("error", (error) => {
-    console.error(`PM.ai could not start on ${HOST}:${PORT}: ${error.message}`);
+    logError("server.failed_to_start", {
+      host: HOST,
+      port: PORT,
+      message: error.message
+    });
     process.exit(1);
   });
 }

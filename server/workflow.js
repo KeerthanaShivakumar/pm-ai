@@ -14,7 +14,10 @@ const {
   appendStageHistory,
   asString,
   createHttpError,
-  mergeArtifacts
+  mergeArtifacts,
+  logInfo,
+  logWarn,
+  summarizeInputForLogs
 } = require("./common");
 const {
   buildDemoAnalysis,
@@ -48,6 +51,7 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
   };
 
   async function createWorkflow(input) {
+    logInfo("workflow.create_started", summarizeInputForLogs(input));
     const workflow = {
       id: buildRunId(input.productName),
       createdAt: new Date().toISOString(),
@@ -67,6 +71,10 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
 
     const nextWorkflow = await generateWorkflowStage(workflow, "opportunity");
     saveWorkflow(nextWorkflow, "Workflow created and opportunity draft generated.");
+    logInfo("workflow.create_completed", {
+      workflowId: nextWorkflow.id,
+      mode: nextWorkflow.mode
+    });
     return nextWorkflow;
   }
 
@@ -93,6 +101,9 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
   function readWorkflow(workflowId) {
     const filePath = path.join(getWorkflowRunDir(workflowId), "workflow.json");
     if (!fs.existsSync(filePath)) {
+      logWarn("workflow.read_missing", {
+        workflowId
+      });
       throw createHttpError(404, `Workflow ${workflowId} was not found.`);
     }
 
@@ -122,6 +133,11 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
         reason: "Codex has not been launched for this workflow."
       };
     }
+    logInfo("workflow.read_completed", {
+      workflowId,
+      events: workflow.events.length,
+      artifacts: workflow.artifacts.length
+    });
     return workflow;
   }
 
@@ -149,6 +165,12 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
       }
     ]);
     fs.writeFileSync(workflowPath, `${JSON.stringify(workflow, null, 2)}\n`, "utf8");
+    logInfo("workflow.saved", {
+      workflowId: workflow.id,
+      message,
+      artifacts: workflow.artifacts.length,
+      stages: summarizeWorkflowStages(workflow)
+    });
   }
 
   function syncWorkflowArtifacts(workflow) {
@@ -201,6 +223,10 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
   async function generateWorkflowStage(workflow, stageKey) {
     assertKnownStage(stageKey);
     assertStageDependencies(workflow, stageKey);
+    logInfo("workflow.stage_generate_started", {
+      workflowId: workflow.id,
+      stageKey
+    });
 
     const nextWorkflow = cloneJson(workflow);
     const stage = nextWorkflow.stages[stageKey];
@@ -241,11 +267,21 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
         reason: "Codex kickoff will refresh after downstream approvals."
       };
     }
+    logInfo("workflow.stage_generate_completed", {
+      workflowId: nextWorkflow.id,
+      stageKey,
+      version: stage.version,
+      summary: summarizeStageDraft(stageKey, stage.draft)
+    });
     return nextWorkflow;
   }
 
   function updateWorkflowStage(workflow, stageKey, draftInput) {
     assertKnownStage(stageKey);
+    logInfo("workflow.stage_update_started", {
+      workflowId: workflow.id,
+      stageKey
+    });
     const nextWorkflow = cloneJson(workflow);
     const stage = nextWorkflow.stages[stageKey];
     const fallback = stage.draft || stage.approved || buildStageFallback(nextWorkflow, stageKey);
@@ -265,12 +301,22 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
         reason: "Codex launch was cleared because an upstream stage changed."
       };
     }
+    logInfo("workflow.stage_update_completed", {
+      workflowId: nextWorkflow.id,
+      stageKey,
+      version: stage.version,
+      summary: summarizeStageDraft(stageKey, stage.draft)
+    });
     return nextWorkflow;
   }
 
   function approveWorkflowStage(workflow, stageKey) {
     assertKnownStage(stageKey);
     assertStageDependencies(workflow, stageKey);
+    logInfo("workflow.stage_approve_started", {
+      workflowId: workflow.id,
+      stageKey
+    });
     const nextWorkflow = cloneJson(workflow);
     const stage = nextWorkflow.stages[stageKey];
     if (!stage?.draft) {
@@ -285,12 +331,25 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
 
     markDownstreamStagesStale(nextWorkflow, stageKey);
     if (stageKey === "codex" && nextWorkflow.input.runCodex) {
+      logInfo("workflow.stage_approve_auto_launch", {
+        workflowId: nextWorkflow.id,
+        stageKey
+      });
       return runWorkflowCodex(nextWorkflow, { autoRequested: true });
     }
+    logInfo("workflow.stage_approve_completed", {
+      workflowId: nextWorkflow.id,
+      stageKey,
+      approvedVersion: stage.approvedVersion
+    });
     return nextWorkflow;
   }
 
   function runWorkflowCodex(workflow, options = {}) {
+    logInfo("workflow.codex_run_started", {
+      workflowId: workflow.id,
+      autoRequested: Boolean(options.autoRequested)
+    });
     const nextWorkflow = cloneJson(workflow);
     const codexStage = nextWorkflow.stages.codex;
     if (!codexStage?.approved) {
@@ -315,6 +374,12 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
       },
       prompt: codexStage.approved.prompt,
       autoRequested: Boolean(options.autoRequested)
+    });
+    logInfo("workflow.codex_run_completed", {
+      workflowId: nextWorkflow.id,
+      autoRequested: Boolean(options.autoRequested),
+      jobId: nextWorkflow.codexJob?.id || "",
+      status: nextWorkflow.codexJob?.status || "unknown"
     });
     return nextWorkflow;
   }
@@ -405,10 +470,12 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
 
   function markDownstreamStagesStale(workflow, stageKey) {
     const startIndex = WORKFLOW_STAGE_ORDER.indexOf(stageKey);
+    const affectedStages = [];
     for (let index = startIndex + 1; index < WORKFLOW_STAGE_ORDER.length; index += 1) {
       const downstreamStage = workflow.stages[WORKFLOW_STAGE_ORDER[index]];
       if (downstreamStage.draft || downstreamStage.approved) {
         downstreamStage.stale = true;
+        affectedStages.push(downstreamStage.key);
         if (downstreamStage.key !== "codex") {
           downstreamStage.approved = null;
           downstreamStage.approvedAt = null;
@@ -420,6 +487,13 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
           `${downstreamStage.label} needs review because ${WORKFLOW_STAGE_META[stageKey].label.toLowerCase()} changed.`
         );
       }
+    }
+    if (affectedStages.length) {
+      logInfo("workflow.downstream_marked_stale", {
+        workflowId: workflow.id,
+        stageKey,
+        affectedStages
+      });
     }
   }
 }
@@ -692,6 +766,63 @@ function buildAnalysisFromWorkflow(workflow) {
     wireframe,
     tickets,
     codexKickoff
+  };
+}
+
+function summarizeWorkflowStages(workflow) {
+  return WORKFLOW_STAGE_ORDER.reduce((summary, stageKey) => {
+    const stage = workflow.stages?.[stageKey];
+    summary[stageKey] = {
+      version: Number(stage?.version || 0),
+      hasDraft: Boolean(stage?.draft),
+      hasApproved: Boolean(stage?.approved),
+      stale: Boolean(stage?.stale)
+    };
+    return summary;
+  }, {});
+}
+
+function summarizeStageDraft(stageKey, draft) {
+  if (!draft) {
+    return {
+      empty: true
+    };
+  }
+  if (stageKey === "opportunity") {
+    return {
+      evidence: Array.isArray(draft.evidence) ? draft.evidence.length : 0,
+      featureCandidates: Array.isArray(draft.featureCandidates) ? draft.featureCandidates.length : 0,
+      recommendedFeature: asString(draft.recommendedFeature?.title)
+    };
+  }
+  if (stageKey === "spec") {
+    return {
+      jobsToBeDone: Array.isArray(draft.jobsToBeDone) ? draft.jobsToBeDone.length : 0,
+      scopeIn: Array.isArray(draft.scopeIn) ? draft.scopeIn.length : 0,
+      acceptanceCriteria: Array.isArray(draft.acceptanceCriteria) ? draft.acceptanceCriteria.length : 0
+    };
+  }
+  if (stageKey === "wireframe") {
+    return {
+      frames: Array.isArray(draft.frames) ? draft.frames.length : 0,
+      components:
+        Array.isArray(draft.frames) ?
+          draft.frames.reduce(
+            (total, frame) => total + (Array.isArray(frame?.components) ? frame.components.length : 0),
+            0
+          )
+        : 0
+    };
+  }
+  if (stageKey === "tickets") {
+    return {
+      tickets: Array.isArray(draft) ? draft.length : 0
+    };
+  }
+  return {
+    architectureNotes: Array.isArray(draft.architectureNotes) ? draft.architectureNotes.length : 0,
+    firstTasks: Array.isArray(draft.firstTasks) ? draft.firstTasks.length : 0,
+    promptChars: asString(draft.prompt).length
   };
 }
 
