@@ -38,7 +38,15 @@
               <h2>What the PM already knows</h2>
             </div>
             <div class="header-actions">
-              <button type="button" class="ghost-button" id="sample-button">Use sample</button>
+              <label class="preset-picker">
+                <span>Demo preset</span>
+                <select id="samplePreset" name="samplePreset">
+                  <option value="pm-ai">PM.ai happy path</option>
+                  <option value="conflicting-signals">Conflicting B2B signals</option>
+                  <option value="low-signal">Low-signal review</option>
+                </select>
+              </label>
+              <button type="button" class="ghost-button" id="sample-button">Load preset</button>
               <button type="button" class="ghost-button" id="clear-button">Clear</button>
             </div>
           </div>
@@ -138,12 +146,12 @@
             </label>
             <label class="checkbox-field">
               <input id="runCodex" name="runCodex" type="checkbox" />
-              <span>Launch `codex exec` after synthesis</span>
+              <span>Auto-launch live code generation after the final approval</span>
             </label>
           </div>
 
           <div class="submit-row">
-            <button id="run-button" type="submit" class="primary-button">Run PM.ai</button>
+            <button id="run-button" type="submit" class="primary-button">Start workflow</button>
             <p class="subtle-copy" id="mode-hint">Checking runtime...</p>
           </div>
         </form>
@@ -152,16 +160,17 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Output</p>
-              <h2>What to build next</h2>
+              <h2>Approval workflow</h2>
             </div>
             <div id="run-meta" class="meta-pills"></div>
           </div>
 
           <div id="empty-state" class="empty-state">
-            <p class="empty-state-title">Signal in. Build plan out.</p>
+            <p class="empty-state-title">Signal in. Approvals out.</p>
             <p>
-              Start with the sample dataset or paste your own customer signals. PM.ai will generate
-              a ranked opportunity, a spec, a Figma-style wireframe brief, and a Codex kickoff.
+              Start with a preset or paste your own customer signals. PM.ai will generate a draft
+              recommendation first, then let you edit and approve each downstream stage before the
+              Codex kickoff.
             </p>
           </div>
 
@@ -171,6 +180,6 @@
       </section>
     </main>
 
-    <script src="/public/app.js"></script>
+    <script type="module" src="/public/app.js"></script>
   </body>
 </html>

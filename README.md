@@ -18,7 +18,7 @@ What it does:
 - recommends one feature to build next with reasoning
 - generates a feature spec and a Figma-style wireframe description
 - writes artifacts to disk for every run
-- optionally launches `codex exec` to kick off implementation in a target workspace
+- optionally auto-launches a live coding run through the OpenAI Responses API
 
 ## Run it
 
@@ -59,18 +59,17 @@ The app works in two modes:
 
    Put `OPENAI_API_KEY` in `.env` locally, or configure it as a platform secret in production.
 
-## Optional Codex autorun
+## Optional live coding autorun
 
-To let PM.ai invoke `codex exec` after generating the brief:
+To let PM.ai auto-launch the final coding step after the Codex kickoff is approved:
 
 ```bash
 ALLOW_CODEX_RUN=1
 CODEX_MODEL=gpt-5.3-codex
-CODEX_ALLOWED_WORKSPACE_ROOT=/safe/parent/directory
 npm start
 ```
 
-The UI includes a `Codex workspace path` field. PM.ai will write the kickoff prompt to disk and, when autorun is enabled, launch `codex exec` against that workspace.
+The UI includes a `Codex workspace path` field. PM.ai uses that as repo context inside the generated prompt, then streams model output back into the in-app code viewer while also writing the raw output and parsed file blocks into the run artifacts.
 
 ## Deployment
 
@@ -98,16 +97,12 @@ Use these settings:
 
 The Docker image already defaults to `PORT=7860` and `HOST=0.0.0.0`, so on Hugging Face you typically only need to set the OpenAI secret and optional model override.
 
-If you also want Codex autorun in a deployment target, configure:
+If you also want live coding autorun in a deployment target, configure:
 
 - `ALLOW_CODEX_RUN=1`
 - `CODEX_MODEL=gpt-5.3-codex`
-- `CODEX_ALLOWED_WORKSPACE_ROOT=/safe/parent/directory`
-- `CODEX_BIN` only if `codex` is not on the PATH
 
-`CODEX_ALLOWED_WORKSPACE_ROOT` restricts autorun to a known parent directory. Without that allowlist, Codex autorun should stay off in any hosted environment.
-
-Note that Codex autorun usually makes more sense in a trusted internal deployment than in a public demo Space.
+Note that live coding autorun usually makes more sense in a trusted internal deployment than in a public demo Space.
 
 ## Artifacts
 
@@ -120,10 +115,12 @@ Every run creates a folder in `artifacts/` containing:
 - `tickets.json`
 - `codex-prompt.md`
 
-If Codex autorun is enabled, the same run folder also gets a `codex/` subdirectory with:
+If the live coding step runs, the same run folder also gets a `codex/` subdirectory with:
 
-- `session.log`
-- `last-message.md`
+- `stream.log`
+- `output.md`
+- `files.json`
+- `job.json`
 
 ## Notes
 
