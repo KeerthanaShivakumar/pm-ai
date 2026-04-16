@@ -406,15 +406,31 @@ function bindWorkflowActions(dom, state) {
           showBanner(
             dom.statusBanner,
             codexStage?.stale
-              ? "Regenerate and re-approve the Codex stage before launching implementation."
+              ? "Refresh and re-approve the Codex stage before launching implementation."
               : "Approve the Codex kickoff stage before launching implementation.",
             true
           );
           return;
         }
 
-        if (state.activeStage === "codex") {
-          await persistCurrentStageDraft(dom, state, "codex");
+        if (state.screen === "build-pack" && state.activeStage === "codex") {
+          const currentDraft = collectStageDraft(dom.results, state.workflow, "codex");
+          if (currentDraft && JSON.stringify(currentDraft) !== JSON.stringify(codexStage.approved)) {
+            logUi(
+              "workflow.codex_launch_blocked",
+              {
+                workflowId: state.workflow.workflowId,
+                reason: "unsaved_codex_changes"
+              },
+              "warn"
+            );
+            showBanner(
+              dom.statusBanner,
+              "Save and re-approve the Codex stage before launching implementation.",
+              true
+            );
+            return;
+          }
         }
         const workflow = await apiJson(
           `/api/workflows/${encodeURIComponent(state.workflow.workflowId)}/codex/run`,

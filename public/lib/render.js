@@ -340,7 +340,7 @@ function renderStageCard(workflow, stageKey) {
     ? `Approve ${stage.blockedBy.map((stageKey) => workflow.stages[stageKey]?.label || stageKey).join(", ")} before generating this stage.`
     : "";
   const staleNote = stage.stale
-    ? `<p class="stage-note stale-note">Upstream approvals changed. Regenerate or edit this draft before relying on it downstream.</p>`
+    ? `<p class="stage-note stale-note">${escapeHtml(stageStaleNote(stageKey))}</p>`
     : "";
 
   return `
@@ -374,7 +374,7 @@ function renderStageCard(workflow, stageKey) {
           : `
             <div class="stage-actions">
               <button type="button" class="ghost-button" data-action="save-stage" data-stage="${stageKey}">Save draft</button>
-              <button type="button" class="ghost-button" data-action="generate-stage" data-stage="${stageKey}">Regenerate</button>
+              ${renderStageRefreshAction(stageKey, stage)}
               <button type="button" class="primary-button" data-action="approve-stage" data-stage="${stageKey}">Approve ${escapeHtml(stage.label)}</button>
               ${
                 stageKey === "codex" && stage.approved && !stage.stale
@@ -393,6 +393,26 @@ function renderStageCard(workflow, stageKey) {
       }
     </article>
   `;
+}
+
+function renderStageRefreshAction(stageKey, stage) {
+  if (stageKey === "opportunity") {
+    return `<button type="button" class="ghost-button" data-action="generate-stage" data-stage="${stageKey}">Regenerate</button>`;
+  }
+
+  if (stage.stale) {
+    return `<button type="button" class="ghost-button" data-action="generate-stage" data-stage="${stageKey}">Refresh from approvals</button>`;
+  }
+
+  return "";
+}
+
+function stageStaleNote(stageKey) {
+  if (stageKey === "opportunity") {
+    return "The recommendation changed. Regenerate or edit this draft before approving it.";
+  }
+
+  return "Upstream approvals changed. Refresh this draft from the approved inputs or edit it before relying on it downstream.";
 }
 
 function renderStageEditor(stageKey, stageData) {

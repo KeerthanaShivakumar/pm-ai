@@ -356,7 +356,7 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
       throw createHttpError(400, "Approve the Codex kickoff stage before launching implementation.");
     }
     if (codexStage.stale) {
-      throw createHttpError(400, "Regenerate or re-approve the Codex kickoff stage before launching implementation.");
+      throw createHttpError(400, "Refresh and re-approve the Codex kickoff stage before launching implementation.");
     }
     if (nextWorkflow.codexJob?.id) {
       const existingJob = jobs.get(nextWorkflow.codexJob.id);
