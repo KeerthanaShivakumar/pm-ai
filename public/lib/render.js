@@ -225,6 +225,7 @@ export function renderCodexJob(job) {
       <h3>Codex handoff</h3>
       ${renderStatusChip(job.status)}
     </div>
+    ${job.completionMessage ? `<p class="subtle-copy">${escapeHtml(job.completionMessage)}</p>` : ""}
     <ul class="list">
       <li><strong>Model:</strong> ${escapeHtml(job.model)}</li>
       <li><strong>Target workspace:</strong> ${escapeHtml(job.workspacePath)}</li>

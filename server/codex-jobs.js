@@ -120,6 +120,7 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
       status: "running",
       startedAt: new Date().toISOString(),
       completedAt: null,
+      completionMessage: "",
       model: DEFAULT_CODEX_MODEL,
       command: renderCodexCommandPreview(),
       workspacePath,
@@ -236,7 +237,7 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     }
 
     if (job.status === "running") {
-      finishCodexJob(job);
+      finishCodexJob(job, buildCompletionMessage(job, "stream_closed"));
     }
   }
 
@@ -270,7 +271,7 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     const rawData = dataLines.join("\n").trim();
     if (!rawData || rawData === "[DONE]") {
       if (rawData === "[DONE]" && job.status === "running") {
-        finishCodexJob(job);
+        finishCodexJob(job, buildCompletionMessage(job, "done_signal"));
       }
       return;
     }
@@ -312,7 +313,7 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
         runId: job.runId,
         responseId: job.responseId
       });
-      finishCodexJob(job);
+      finishCodexJob(job, buildCompletionMessage(job, "response_completed"));
       return;
     }
 
@@ -362,13 +363,14 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     persistCodexJobArtifacts(job);
   }
 
-  function finishCodexJob(job) {
+  function finishCodexJob(job, completionMessage) {
     if (job.status !== "running") {
       return;
     }
 
     job.status = "completed";
     job.completedAt = new Date().toISOString();
+    job.completionMessage = asString(completionMessage) || buildCompletionMessage(job, "completed");
     persistCodexJobArtifacts(job);
     syncJobIntoWorkflow(job);
     logInfo("codex.job_completed", {
@@ -376,7 +378,8 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
       runId: job.runId,
       responseId: job.responseId,
       files: job.files.length,
-      outputChars: job.outputText.length
+      outputChars: job.outputText.length,
+      completionMessage: job.completionMessage
     });
     closeCodexJobStreams(job, "done");
   }
@@ -389,6 +392,7 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     job.status = "failed";
     job.error = asString(message) || "The coding stream failed.";
     job.completedAt = new Date().toISOString();
+    job.completionMessage = `Code generation stopped: ${job.error}`;
     job.tail.push(`error: ${job.error}`);
     job.tail = job.tail.slice(-40);
     fs.appendFileSync(job.logPath, `\n\n[error] ${job.error}\n`, "utf8");
@@ -397,7 +401,8 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     logError("codex.job_failed", {
       jobId: job.id,
       runId: job.runId,
-      message: job.error
+      message: job.error,
+      completionMessage: job.completionMessage
     });
     closeCodexJobStreams(job, "failed");
   }
@@ -507,11 +512,27 @@ function serializeJob(job) {
     stateUrl: job.stateUrl,
     streamUrl: `/api/jobs/${job.id}/stream`,
     error: job.error,
+    completionMessage: job.completionMessage,
     usage: job.usage,
     tail: job.tail,
     outputText: job.outputText,
     files: job.files
   };
+}
+
+function buildCompletionMessage(job, mode) {
+  const fileCount = Array.isArray(job.files) ? job.files.length : 0;
+  const fileLabel = `${fileCount} file${fileCount === 1 ? "" : "s"}`;
+
+  if (mode === "response_completed" || mode === "done_signal" || mode === "completed") {
+    return `Code generation completed. Parsed ${fileLabel}.`;
+  }
+
+  if (mode === "stream_closed") {
+    return `Code generation stream ended. Parsed ${fileLabel}.`;
+  }
+
+  return `Code generation finished. Parsed ${fileLabel}.`;
 }
 
 function buildCodexSystemPrompt(workspacePath) {

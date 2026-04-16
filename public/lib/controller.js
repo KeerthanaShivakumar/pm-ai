@@ -606,6 +606,11 @@ function trackJobStream(dom, state, job) {
         jobId: snapshot?.id || job.id,
         status: snapshot?.status || "completed"
       });
+      showBanner(
+        dom.statusBanner,
+        snapshot?.completionMessage || "Code generation completed.",
+        false
+      );
       disconnectJobStream(state);
       void refreshWorkflow(dom, state);
     },
@@ -618,6 +623,11 @@ function trackJobStream(dom, state, job) {
           error: snapshot?.error || ""
         },
         "warn"
+      );
+      showBanner(
+        dom.statusBanner,
+        snapshot?.completionMessage || snapshot?.error || "Code generation stopped unexpectedly.",
+        true
       );
       disconnectJobStream(state);
       void refreshWorkflow(dom, state);
