@@ -1,0 +1,251 @@
+{
+  "meta": {
+    "createdAt": "2026-04-16T06:06:31.447Z",
+    "mode": "demo",
+    "warnings": [
+      "OPENAI_API_KEY is not set, so PM.ai is running in deterministic demo mode."
+    ]
+  },
+  "input": {
+    "productName": "PM.ai",
+    "targetUsers": "Product managers at seed to Series B SaaS companies",
+    "productContext": "PM.ai is a Cursor-native copilot for product managers. It ingests customer signals, recommends what to build next with reasoning, generates a feature spec plus Figma-style wireframe description, and then hands the work to Codex so engineering gets an implementation kickoff instead of another doc.",
+    "interviews": "- \"I spend half my week stitching together interview notes, support tickets, and analytics screenshots before I can even write a spec.\"\n- \"The hardest part is choosing one thing with conviction. Everything sounds important when the evidence is scattered.\"\n- \"Once I finally decide, I still have to rewrite the whole story for design and engineering.\"\n- \"I want a tool that preserves the quotes and metrics so I can defend the roadmap decision in front of leadership.\"",
+    "feedback": "- Top support request cluster: \"Can you help us understand which customer problems are coming up most often?\"\n- Sales call note: \"Prospects like the insight synthesis, but they want something that gets them all the way to an execution brief.\"\n- Churn interview: \"The recommendations looked smart, but it still felt like another polished doc we had to operationalize ourselves.\"\n- Internal beta feedback: \"The magic moment is seeing a recommendation, spec, and engineering-ready task list appear from the same input.\"",
+    "usageData": "- 78% of test users complete an upload flow, but only 34% create a follow-on implementation ticket.\n- The most retained users are the ones who export or copy the generated spec within the first session.\n- Average time from first upload to roadmap decision today: 2.8 days.\n- 61% of sessions include multiple signal sources, suggesting users want cross-source synthesis rather than single-note analysis.",
+    "implementationNotes": "Initial MVP can be a lightweight local web app. Keep artifacts auditable on disk. Optimize for a fast vertical slice over enterprise workflows. The differentiated step is a Codex kickoff, not full PM suite breadth.",
+    "codexWorkspacePath": "/Users/keerthanashivakumar/Documents/codex-hackathon/generated/pm-ai-target",
+    "runCodex": true
+  },
+  "analysis": {
+    "executiveSummary": "PM.ai should build Spec-to-Codex Launch next. The signals point to a recurring pain around execution handoff, and the fastest differentiated move is to turn raw evidence into a confident decision plus a clean implementation handoff.",
+    "evidence": [
+      {
+        "title": "Product positioning",
+        "detail": "PM.ai is a Cursor-native copilot for product managers. It ingests customer signals, recommends what to build next with reasoning, generates a feature spec plus Figma-style wiref...",
+        "source": "Product context"
+      },
+      {
+        "title": "Customer interview pattern",
+        "detail": "- \"I spend half my week stitching together interview notes, support tickets, and analytics screenshots before I can even write a spec.\"",
+        "source": "Interviews"
+      },
+      {
+        "title": "Feedback backlog pattern",
+        "detail": "- Top support request cluster: \"Can you help us understand which customer problems are coming up most often?\"",
+        "source": "Feedback"
+      },
+      {
+        "title": "Usage or adoption signal",
+        "detail": "- 78% of test users complete an upload flow, but only 34% create a follow-on implementation ticket.",
+        "source": "Usage data"
+      }
+    ],
+    "featureCandidates": [
+      {
+        "title": "Spec-to-Codex Launch",
+        "summary": "Generate a spec, wireframe description, tickets, and a Codex-ready implementation kickoff.",
+        "userProblem": "PMs lose momentum after the recommendation because they still need to rewrite context for engineering.",
+        "impactScore": 9,
+        "effortScore": 5,
+        "confidenceScore": 8,
+        "reasoning": "Signals repeatedly mention codex, engineering, ticket. Closing the loop from signal to first code is the product's key differentiation."
+      },
+      {
+        "title": "Unified Insight Inbox",
+        "summary": "Cluster incoming evidence into themes and reveal the strongest pain automatically.",
+        "userProblem": "PMs cannot easily tell which requests are duplicates, urgent, or representative.",
+        "impactScore": 8,
+        "effortScore": 6,
+        "confidenceScore": 7,
+        "reasoning": "Signals repeatedly mention feedback, support, request. A better intake layer makes every downstream recommendation more trustworthy."
+      },
+      {
+        "title": "Opportunity Scorecard",
+        "summary": "Rank feature opportunities with evidence-backed scores for impact, effort, and confidence.",
+        "userProblem": "PMs struggle to justify why one opportunity deserves to be built next.",
+        "impactScore": 7,
+        "effortScore": 7,
+        "confidenceScore": 6,
+        "reasoning": "Signals repeatedly mention priorit, roadmap, what to build. This is the decision layer that turns signals into a roadmap move."
+      }
+    ],
+    "recommendedFeature": {
+      "title": "Spec-to-Codex Launch",
+      "whyNow": "The supplied signals already contain enough evidence to ship an initial vertical slice. Solving execution handoff also reinforces PM.ai's core promise: from messy input to a confident build decision.",
+      "userProblem": "PMs lose momentum after the recommendation because they still need to rewrite context for engineering.",
+      "solutionBet": "Create a single workflow that clusters incoming signals, ranks the opportunity, and turns the winning insight into a spec, wireframe description, and engineering kickoff packet.",
+      "successMetrics": [
+        "Time from raw signal upload to approved spec drops below 15 minutes",
+        "At least 70% of synthesized feature recommendations are accepted without major rewrite",
+        "At least 50% of runs produce engineering tickets that can move directly into backlog grooming"
+      ],
+      "risks": [
+        "Over-generalizing from low-signal or biased customer input",
+        "Generating output that feels polished but is not implementation-ready",
+        "Producing too much scope for the first shipped slice"
+      ],
+      "rolloutPlan": [
+        "Start with a single project workspace that accepts pasted text and uploaded notes",
+        "Ship opportunity ranking plus one recommended feature with reasoning",
+        "Add spec, wireframe description, and Codex kickoff as the differentiated second half of the flow"
+      ]
+    },
+    "spec": {
+      "problemStatement": "PM.ai users need a reliable way to move from scattered customer evidence to one prioritized feature recommendation without spending hours manually clustering feedback or rewriting the same context for design and engineering.",
+      "targetUsers": "Product managers at seed to Series B SaaS companies",
+      "userStory": "As a product manager, I want to upload interviews, feedback, and usage data so I can quickly decide what to build next and hand engineering a structured starting point.",
+      "jobsToBeDone": [
+        "Consolidate scattered customer evidence into a shared decision workspace",
+        "Understand which pain is strongest and why it matters now",
+        "Convert the recommendation into execution artifacts without rewriting context"
+      ],
+      "scopeIn": [
+        "Text-based signal ingestion from interviews, feedback, and usage notes",
+        "Opportunity ranking with reasoning and evidence excerpts",
+        "A generated feature spec, wireframe description, and initial engineering tickets",
+        "Codex handoff prompt for implementation kickoff"
+      ],
+      "scopeOut": [
+        "Production-grade design editing or real Figma API integration",
+        "Bi-directional ticket sync with Linear or Jira",
+        "Multi-team portfolio planning and permissions"
+      ],
+      "acceptanceCriteria": [
+        "A PM can submit signal inputs and receive one recommended feature with clear reasoning",
+        "The generated spec contains problem statement, user story, scope, and acceptance criteria",
+        "The wireframe description breaks the UX into named frames with components and notes",
+        "The output includes implementation tickets and a Codex-ready kickoff prompt"
+      ],
+      "openQuestions": [
+        "Should evidence clustering happen automatically or allow manual editing before generation?",
+        "Which developer workflow is most valuable first: local Codex, GitHub PR creation, or ticket sync?",
+        "How much product and codebase context should PM.ai require before running Codex?"
+      ]
+    },
+    "wireframe": {
+      "vision": "The main experience should feel like an editorial decision studio: evidence on the left, recommendation in the center, and build outputs on the right.",
+      "frames": [
+        {
+          "name": "Signal Intake",
+          "purpose": "Help a PM load evidence with confidence and understand what will be synthesized.",
+          "layout": "A two-column frame with source cards on the left and a sticky run summary on the right.",
+          "components": [
+            {
+              "name": "Source Tabs",
+              "description": "Interviews, feedback, and usage views with upload affordances and text areas.",
+              "note": "Show file names and a short import summary for trust."
+            },
+            {
+              "name": "Coverage Meter",
+              "description": "A compact widget that estimates how strong and balanced the evidence is.",
+              "note": "Flag when one source is underrepresented."
+            },
+            {
+              "name": "Run CTA",
+              "description": "A prominent action to synthesize the signals into one recommendation.",
+              "note": "Pair with a hint about what gets generated."
+            }
+          ]
+        },
+        {
+          "name": "What To Build Next",
+          "purpose": "Show the winning opportunity and preserve the reasoning behind the recommendation.",
+          "layout": "Editorial card stack with the chosen feature centered above ranked alternatives.",
+          "components": [
+            {
+              "name": "Recommendation Hero",
+              "description": "Large headline with the chosen feature, why now, and the key supporting signal.",
+              "note": "This is the decision moment and should feel confident."
+            },
+            {
+              "name": "Evidence Rail",
+              "description": "Supporting quotes, usage notes, and confidence indicators grouped by source.",
+              "note": "Every claim should trace back to raw signal input."
+            },
+            {
+              "name": "Candidate Comparison",
+              "description": "Three concise options with impact, effort, and confidence scores.",
+              "note": "Make tradeoffs easy to scan in under 30 seconds."
+            }
+          ]
+        },
+        {
+          "name": "Build Pack",
+          "purpose": "Turn the chosen opportunity into design and engineering starting material.",
+          "layout": "A three-panel frame: spec, wireframe description, and Codex kickoff.",
+          "components": [
+            {
+              "name": "Spec Composer",
+              "description": "Structured sections for scope, success metrics, and acceptance criteria.",
+              "note": "Designed for fast copy/paste into docs or backlog tools."
+            },
+            {
+              "name": "Wireframe Cards",
+              "description": "Named frames with component notes that read like a Figma-ready artifact.",
+              "note": "Keep the language concrete instead of abstract design talk."
+            },
+            {
+              "name": "Codex Launch Panel",
+              "description": "Generated tickets, first tasks, and a one-click implementation handoff.",
+              "note": "This is the product's moat and should feel operational, not aspirational."
+            }
+          ]
+        }
+      ],
+      "interactionNotes": [
+        "Preserve raw source visibility so the PM can challenge the model's reasoning",
+        "Keep ticket and prompt actions sticky while the user reviews the spec",
+        "Use warmth and confidence in the UI, but make every output editable in later iterations"
+      ],
+      "figmaPrompt": "Design a warm editorial dashboard for product managers. Three main frames: Signal Intake, What To Build Next, and Build Pack. Use layered cards, evidence rails, score chips, and a premium but practical tone."
+    },
+    "tickets": [
+      {
+        "title": "Scaffold signal intake and analysis run flow",
+        "owner": "Frontend + backend",
+        "description": "Build the form, upload affordances, analyze endpoint integration, and loading states for the full PM.ai run.",
+        "definitionOfDone": [
+          "A PM can submit product context plus customer signals",
+          "The UI shows a clear loading and error state",
+          "The app renders the returned recommendation and output sections"
+        ]
+      },
+      {
+        "title": "Generate structured build outputs",
+        "owner": "Platform",
+        "description": "Produce normalized JSON and markdown artifacts for the recommended feature, spec, wireframe, and tickets.",
+        "definitionOfDone": [
+          "Every run writes artifacts to disk",
+          "Spec and ticket output are available as readable markdown or JSON",
+          "The frontend links directly to generated artifacts"
+        ]
+      },
+      {
+        "title": "Enable Codex kickoff for the winning opportunity",
+        "owner": "Developer experience",
+        "description": "Create a Codex-ready prompt and optionally run `codex exec` against a target workspace when enabled.",
+        "definitionOfDone": [
+          "The generated prompt is visible in the UI",
+          "Codex auto-run is opt-in and safe by default",
+          "A running job shows status, logs, and the final agent message path"
+        ]
+      }
+    ],
+    "codexKickoff": {
+      "objective": "Scaffold the first implementation slice for Spec-to-Codex Launch and leave the codebase in a state where an engineer can continue without reinterpreting the product brief.",
+      "architectureNotes": [
+        "Prefer an auditable pipeline where raw signal inputs, analysis output, and generated artifacts are all persisted",
+        "Keep the interface modular so the synthesis engine can later swap between demo mode, OpenAI mode, and deeper workflow automation",
+        "Respect these build notes: Initial MVP can be a lightweight local web app. Keep artifacts auditable on disk. Optimize for a fast vertical slice over enterprise workflows. The differentiated step is a Code..."
+      ],
+      "firstTasks": [
+        "Create or update the ingestion flow and analysis endpoint",
+        "Add the UI sections that render recommendation, spec, wireframe, and tickets",
+        "Write the Codex kickoff packet and expose its status in the app"
+      ],
+      "prompt": "You are kicking off implementation for PM.ai.\n\nBuild the smallest production-minded vertical slice that proves the winning feature.\n\nRecommended feature: Spec-to-Codex Launch\nObjective: Scaffold the first implementation slice for Spec-to-Codex Launch and leave the codebase in a state where an engineer can continue without reinterpreting the product brief.\n\nProduct context:\nPM.ai is a Cursor-native copilot for product managers. It ingests customer signals, recommends what to build next with reasoning, generates a feature spec plus Figma-style wireframe description, and then hands the work to Codex so engineering gets an implementation kickoff instead of another doc.\n\nTarget users:\nProduct managers at seed to Series B SaaS companies\n\nWhy now:\nThe supplied signals already contain enough evidence to ship an initial vertical slice. Solving execution handoff also reinforces PM.ai's core promise: from messy input to a confident build decision.\n\nProblem statement:\nPM.ai users need a reliable way to move from scattered customer evidence to one prioritized feature recommendation without spending hours manually clustering feedback or rewriting the same context for design and engineering.\n\nUser story:\nAs a product manager, I want to upload interviews, feedback, and usage data so I can quickly decide what to build next and hand engineering a structured starting point.\n\nScope in:\n- Text-based signal ingestion from interviews, feedback, and usage notes\n- Opportunity ranking with reasoning and evidence excerpts\n- A generated feature spec, wireframe description, and initial engineering tickets\n- Codex handoff prompt for implementation kickoff\n\nAcceptance criteria:\n- A PM can submit signal inputs and receive one recommended feature with clear reasoning\n- The generated spec contains problem statement, user story, scope, and acceptance criteria\n- The wireframe description breaks the UX into named frames with components and notes\n- The output includes implementation tickets and a Codex-ready kickoff prompt\n\nArchitecture notes:\n- Prefer an auditable pipeline where raw signal inputs, analysis output, and generated artifacts are all persisted\n- Keep the interface modular so the synthesis engine can later swap between demo mode, OpenAI mode, and deeper workflow automation\n- Respect these build notes: Initial MVP can be a lightweight local web app. Keep artifacts auditable on disk. Optimize for a fast vertical slice over enterprise workflows. The differentiated step is a Code...\n\nFirst tasks:\n- Create or update the ingestion flow and analysis endpoint\n- Add the UI sections that render recommendation, spec, wireframe, and tickets\n- Write the Codex kickoff packet and expose its status in the app\n\nTickets:\n- Scaffold signal intake and analysis run flow [Frontend + backend]\n  Build the form, upload affordances, analyze endpoint integration, and loading states for the full PM.ai run.\n  - A PM can submit product context plus customer signals\n  - The UI shows a clear loading and error state\n  - The app renders the returned recommendation and output sections\n- Generate structured build outputs [Platform]\n  Produce normalized JSON and markdown artifacts for the recommended feature, spec, wireframe, and tickets.\n  - Every run writes artifacts to disk\n  - Spec and ticket output are available as readable markdown or JSON\n  - The frontend links directly to generated artifacts\n- Enable Codex kickoff for the winning opportunity [Developer experience]\n  Create a Codex-ready prompt and optionally run `codex exec` against a target workspace when enabled.\n  - The generated prompt is visible in the UI\n  - Codex auto-run is opt-in and safe by default\n  - A running job shows status, logs, and the final agent message path\n\nWireframe frames:\n- Signal Intake: Help a PM load evidence with confidence and understand what will be synthesized.\n  Layout: A two-column frame with source cards on the left and a sticky run summary on the right.\n  - Source Tabs: Interviews, feedback, and usage views with upload affordances and text areas.\n  - Coverage Meter: A compact widget that estimates how strong and balanced the evidence is.\n  - Run CTA: A prominent action to synthesize the signals into one recommendation.\n- What To Build Next: Show the winning opportunity and preserve the reasoning behind the recommendation.\n  Layout: Editorial card stack with the chosen feature centered above ranked alternatives.\n  - Recommendation Hero: Large headline with the chosen feature, why now, and the key supporting signal.\n  - Evidence Rail: Supporting quotes, usage notes, and confidence indicators grouped by source.\n  - Candidate Comparison: Three concise options with impact, effort, and confidence scores.\n- Build Pack: Turn the chosen opportunity into design and engineering starting material.\n  Layout: A three-panel frame: spec, wireframe description, and Codex kickoff.\n  - Spec Composer: Structured sections for scope, success metrics, and acceptance criteria.\n  - Wireframe Cards: Named frames with component notes that read like a Figma-ready artifact.\n  - Codex Launch Panel: Generated tickets, first tasks, and a one-click implementation handoff.\n\nImplementation notes from PM:\nInitial MVP can be a lightweight local web app. Keep artifacts auditable on disk. Optimize for a fast vertical slice over enterprise workflows. The differentiated step is a Codex kickoff, not full PM suite breadth.\n\nPlease inspect the current codebase, scaffold the vertical slice, and leave the repo in a coherent state with clear comments only where necessary. Favor simple, maintainable structure over over-engineering.",
+      "commandPreview": "codex exec --skip-git-repo-check --full-auto -m gpt-5.3-codex -C <workspace> -"
+    }
+  }
+}

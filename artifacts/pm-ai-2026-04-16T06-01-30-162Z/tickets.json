@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Scaffold signal intake and analysis run flow",
+    "owner": "Frontend + backend",
+    "description": "Build the form, upload affordances, analyze endpoint integration, and loading states for the full PM.ai run.",
+    "definitionOfDone": [
+      "A PM can submit product context plus customer signals",
+      "The UI shows a clear loading and error state",
+      "The app renders the returned recommendation and output sections"
+    ]
+  },
+  {
+    "title": "Generate structured build outputs",
+    "owner": "Platform",
+    "description": "Produce normalized JSON and markdown artifacts for the recommended feature, spec, wireframe, and tickets.",
+    "definitionOfDone": [
+      "Every run writes artifacts to disk",
+      "Spec and ticket output are available as readable markdown or JSON",
+      "The frontend links directly to generated artifacts"
+    ]
+  },
+  {
+    "title": "Enable Codex kickoff for the winning opportunity",
+    "owner": "Developer experience",
+    "description": "Create a Codex-ready prompt and optionally run `codex exec` against a target workspace when enabled.",
+    "definitionOfDone": [
+      "The generated prompt is visible in the UI",
+      "Codex auto-run is opt-in and safe by default",
+      "A running job shows status, logs, and the final agent message path"
+    ]
+  }
+]

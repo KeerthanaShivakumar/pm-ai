@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PM.ai</title>
+    <link rel="stylesheet" href="/public/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-left"></div>
+    <div class="ambient ambient-right"></div>
+    <main class="app-shell">
+      <section class="hero">
+        <p class="eyebrow">Cursor for Product Managers</p>
+        <div class="hero-grid">
+          <div>
+            <h1>PM.ai</h1>
+            <p class="hero-copy">
+              Tell it what you know, it tells you what to build, then builds it.
+            </p>
+          </div>
+          <div class="hero-panel">
+            <p class="hero-panel-label">Core loop</p>
+            <ol class="loop-list">
+              <li>Upload customer interviews, feedback, and usage notes.</li>
+              <li>Generate one evidence-backed recommendation.</li>
+              <li>Ship a spec, wireframe brief, tickets, and a Codex kickoff.</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form id="pm-form" class="panel input-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Input</p>
+              <h2>What the PM already knows</h2>
+            </div>
+            <div class="header-actions">
+              <button type="button" class="ghost-button" id="sample-button">Use sample</button>
+              <button type="button" class="ghost-button" id="clear-button">Clear</button>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>Product name</span>
+            <input id="productName" name="productName" type="text" placeholder="PM.ai" />
+          </label>
+
+          <label class="field">
+            <span>Target users</span>
+            <input
+              id="targetUsers"
+              name="targetUsers"
+              type="text"
+              placeholder="Growth PMs at B2B SaaS companies"
+            />
+          </label>
+
+          <label class="field">
+            <span>Product context</span>
+            <textarea
+              id="productContext"
+              name="productContext"
+              rows="5"
+              placeholder="Describe the product, value prop, current workflow, and what makes it differentiated."
+            ></textarea>
+          </label>
+
+          <div class="field-group">
+            <div class="field-group-header">
+              <span>Customer interviews</span>
+              <label class="upload-chip">
+                <input type="file" data-target="interviews" multiple accept=".txt,.md,.csv,.json" />
+                Import files
+              </label>
+            </div>
+            <textarea
+              id="interviews"
+              name="interviews"
+              rows="6"
+              placeholder="Paste interview excerpts, transcripts, or research notes."
+            ></textarea>
+          </div>
+
+          <div class="field-group">
+            <div class="field-group-header">
+              <span>Feedback backlog</span>
+              <label class="upload-chip">
+                <input type="file" data-target="feedback" multiple accept=".txt,.md,.csv,.json" />
+                Import files
+              </label>
+            </div>
+            <textarea
+              id="feedback"
+              name="feedback"
+              rows="6"
+              placeholder="Paste support tickets, sales objections, feature requests, or churn reasons."
+            ></textarea>
+          </div>
+
+          <div class="field-group">
+            <div class="field-group-header">
+              <span>Usage data</span>
+              <label class="upload-chip">
+                <input type="file" data-target="usageData" multiple accept=".txt,.md,.csv,.json" />
+                Import files
+              </label>
+            </div>
+            <textarea
+              id="usageData"
+              name="usageData"
+              rows="6"
+              placeholder="Paste funnel notes, adoption metrics, activation issues, or BI summaries."
+            ></textarea>
+          </div>
+
+          <label class="field">
+            <span>Implementation notes</span>
+            <textarea
+              id="implementationNotes"
+              name="implementationNotes"
+              rows="5"
+              placeholder="Add stack hints, repo context, constraints, or rollout notes for engineering."
+            ></textarea>
+          </label>
+
+          <div class="build-row">
+            <label class="field">
+              <span>Codex workspace path</span>
+              <input
+                id="codexWorkspacePath"
+                name="codexWorkspacePath"
+                type="text"
+                placeholder="/path/to/target/repo"
+              />
+            </label>
+            <label class="checkbox-field">
+              <input id="runCodex" name="runCodex" type="checkbox" />
+              <span>Launch `codex exec` after synthesis</span>
+            </label>
+          </div>
+
+          <div class="submit-row">
+            <button id="run-button" type="submit" class="primary-button">Run PM.ai</button>
+            <p class="subtle-copy" id="mode-hint">Checking runtime...</p>
+          </div>
+        </form>
+
+        <section class="panel output-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Output</p>
+              <h2>What to build next</h2>
+            </div>
+            <div id="run-meta" class="meta-pills"></div>
+          </div>
+
+          <div id="empty-state" class="empty-state">
+            <p class="empty-state-title">Signal in. Build plan out.</p>
+            <p>
+              Start with the sample dataset or paste your own customer signals. PM.ai will generate
+              a ranked opportunity, a spec, a Figma-style wireframe brief, and a Codex kickoff.
+            </p>
+          </div>
+
+          <div id="status-banner" class="status-banner hidden"></div>
+          <div id="results" class="results hidden"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/public/app.js"></script>
+  </body>
+</html>

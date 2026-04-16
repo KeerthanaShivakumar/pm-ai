@@ -1,0 +1,11 @@
+{
+  "productName": "PM.ai",
+  "targetUsers": "PMs",
+  "productContext": "AI tool for PMs",
+  "interviews": "Users say prioritization is slow and handoffs are messy.",
+  "feedback": "Support tickets ask for clearer next steps.",
+  "usageData": "Only 30% of sessions produce tickets.",
+  "implementationNotes": "Keep it lightweight and auditable.",
+  "codexWorkspacePath": "",
+  "runCodex": false
+}
