@@ -330,13 +330,6 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
     appendStageHistory(stage, "approved", `Approved ${stage.label.toLowerCase()} v${stage.approvedVersion}.`);
 
     markDownstreamStagesStale(nextWorkflow, stageKey);
-    if (stageKey === "codex" && nextWorkflow.input.runCodex) {
-      logInfo("workflow.stage_approve_auto_launch", {
-        workflowId: nextWorkflow.id,
-        stageKey
-      });
-      return runWorkflowCodex(nextWorkflow, { autoRequested: true });
-    }
     logInfo("workflow.stage_approve_completed", {
       workflowId: nextWorkflow.id,
       stageKey,
@@ -345,10 +338,9 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
     return nextWorkflow;
   }
 
-  function runWorkflowCodex(workflow, options = {}) {
+  function runWorkflowCodex(workflow) {
     logInfo("workflow.codex_run_started", {
-      workflowId: workflow.id,
-      autoRequested: Boolean(options.autoRequested)
+      workflowId: workflow.id
     });
     const nextWorkflow = cloneJson(workflow);
     const codexStage = nextWorkflow.stages.codex;
@@ -372,12 +364,10 @@ function createWorkflowService({ generateAnalysisBundle, startCodexResponsesJob,
         runDir: getWorkflowRunDir(nextWorkflow.id),
         files: nextWorkflow.artifacts || []
       },
-      prompt: codexStage.approved.prompt,
-      autoRequested: Boolean(options.autoRequested)
+      prompt: codexStage.approved.prompt
     });
     logInfo("workflow.codex_run_completed", {
       workflowId: nextWorkflow.id,
-      autoRequested: Boolean(options.autoRequested),
       jobId: nextWorkflow.codexJob?.id || "",
       status: nextWorkflow.codexJob?.status || "unknown"
     });

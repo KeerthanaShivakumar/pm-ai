@@ -219,8 +219,7 @@ function normalizeInput(payload) {
     feedback: asString(payload.feedback),
     usageData: asString(payload.usageData),
     implementationNotes: asString(payload.implementationNotes),
-    codexWorkspacePath: asString(payload.codexWorkspacePath),
-    runCodex: Boolean(payload.runCodex)
+    codexWorkspacePath: asString(payload.codexWorkspacePath)
   };
 }
 

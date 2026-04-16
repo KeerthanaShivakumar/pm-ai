@@ -70,24 +70,11 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
     return undefined;
   }
 
-  function startCodexResponsesJob({ input, runId, artifactBundle, prompt, autoRequested = false }) {
+  function startCodexResponsesJob({ input, runId, artifactBundle, prompt }) {
     logInfo("codex.job_requested", {
       runId,
-      autoRequested,
-      runCodex: Boolean(input.runCodex),
       hasApiKey: Boolean(process.env.OPENAI_API_KEY)
     });
-    if (autoRequested && !input.runCodex) {
-      logWarn("codex.job_skipped", {
-        runId,
-        reason: "auto_requested_without_run_codex_flag"
-      });
-      return {
-        status: "idle",
-        reason: "Codex auto-run was not requested."
-      };
-    }
-
     if (!process.env.OPENAI_API_KEY) {
       logWarn("codex.job_disabled", {
         runId,
@@ -96,17 +83,6 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
       return {
         status: "disabled",
         reason: "Set OPENAI_API_KEY to stream implementation output from the Responses API."
-      };
-    }
-
-    if (autoRequested && process.env.ALLOW_CODEX_RUN !== "1") {
-      logWarn("codex.job_disabled", {
-        runId,
-        reason: "auto_run_not_enabled"
-      });
-      return {
-        status: "disabled",
-        reason: "Set ALLOW_CODEX_RUN=1 to auto-launch the final coding step after approval."
       };
     }
 
@@ -148,7 +124,6 @@ function createCodexJobsService({ readWorkflow, saveWorkflow, getWorkflowRunDir 
       jobId: job.id,
       runId,
       model: job.model,
-      autoRequested,
       workspacePath
     });
 

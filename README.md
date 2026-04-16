@@ -18,7 +18,7 @@ What it does:
 - recommends one feature to build next with reasoning
 - generates a feature spec and a Figma-style wireframe description
 - writes artifacts to disk for every run
-- optionally auto-launches a live coding run through the OpenAI Responses API
+- can launch a live coding run through the OpenAI Responses API from the approved Codex brief
 
 ## Run it
 
@@ -59,17 +59,14 @@ The app works in two modes:
 
    Put `OPENAI_API_KEY` in `.env` locally, or configure it as a platform secret in production.
 
-## Optional live coding autorun
-
-To let PM.ai auto-launch the final coding step after the Codex kickoff is approved:
+## Live coding
 
 ```bash
-ALLOW_CODEX_RUN=1
 CODEX_MODEL=gpt-5.3-codex
 npm start
 ```
 
-The UI includes a `Codex workspace path` field. PM.ai uses that as repo context inside the generated prompt, then streams model output back into the in-app code viewer while also writing the raw output and parsed file blocks into the run artifacts.
+The UI includes a `Codex workspace path` field. PM.ai uses that as repo context inside the generated prompt, then streams model output back into the in-app code viewer while also writing the raw output and parsed file blocks into the run artifacts. Launch remains a manual action from the approved Codex stage.
 
 ## Logging and observability
 
@@ -111,14 +108,7 @@ Use these settings:
 - Variable: `PORT=7860`
 - Variable: `HOST=0.0.0.0`
 
-The Docker image already defaults to `PORT=7860` and `HOST=0.0.0.0`, so on Hugging Face you typically only need to set the OpenAI secret and optional model override.
-
-If you also want live coding autorun in a deployment target, configure:
-
-- `ALLOW_CODEX_RUN=1`
-- `CODEX_MODEL=gpt-5.3-codex`
-
-Note that live coding autorun usually makes more sense in a trusted internal deployment than in a public demo Space.
+The Docker image already defaults to `PORT=7860` and `HOST=0.0.0.0`, so on Hugging Face you typically only need to set the OpenAI secret and optional model override. If you want live coding enabled, set `CODEX_MODEL=gpt-5.3-codex` or keep the default.
 
 ## Artifacts
 

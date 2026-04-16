@@ -81,7 +81,6 @@ const server = http.createServer(async (req, res) => {
         mode: process.env.OPENAI_API_KEY ? "openai" : "demo",
         defaultOpenAiModel: DEFAULT_OPENAI_MODEL,
         defaultCodexModel: DEFAULT_CODEX_MODEL,
-        codexAutoRunEnabled: process.env.ALLOW_CODEX_RUN === "1",
         suggestedCodexWorkspace: resolveWorkspacePath(""),
         workflowStages: WORKFLOW_STAGE_ORDER
       });
@@ -240,8 +239,7 @@ async function handleAnalyze(req, res) {
     input,
     runId,
     artifactBundle,
-    prompt: analysis.codexKickoff.prompt,
-    autoRequested: true
+    prompt: analysis.codexKickoff.prompt
   });
   logInfo("analysis.request_completed", {
     runId,

@@ -20,8 +20,7 @@ export function getFormPayload(doc) {
     feedback: fieldValue(doc, "feedback"),
     usageData: fieldValue(doc, "usageData"),
     implementationNotes: fieldValue(doc, "implementationNotes"),
-    codexWorkspacePath: fieldValue(doc, "codexWorkspacePath"),
-    runCodex: Boolean(doc.querySelector("#runCodex")?.checked)
+    codexWorkspacePath: fieldValue(doc, "codexWorkspacePath")
   };
 }
 

@@ -404,7 +404,6 @@ function summarizeInputForLogs(input) {
     feedbackChars: asString(input?.feedback).length,
     usageDataChars: asString(input?.usageData).length,
     implementationNotesChars: asString(input?.implementationNotes).length,
-    runCodex: Boolean(input?.runCodex),
     hasWorkspacePath: Boolean(asString(input?.codexWorkspacePath))
   };
 }
