@@ -1,11 +1,11 @@
 ---
 title: PM.ai
 emoji: "🧭"
-colorFrom: orange
-colorTo: yellow
+colorFrom: yellow
+colorTo: blue
 sdk: docker
 app_port: 7860
-short_description: Tell it what you know, it tells you what to build, then builds it.
+short_description: PM copilot from evidence to build kickoff.
 ---
 
 # PM.ai
