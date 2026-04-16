@@ -1,0 +1,8 @@
+.DS_Store
+.env
+.env.local
+.git
+.gitignore
+artifacts
+generated
+node_modules

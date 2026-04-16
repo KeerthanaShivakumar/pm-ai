@@ -5,9 +5,13 @@ const { spawn } = require("child_process");
 const { URL } = require("url");
 
 const ROOT_DIR = __dirname;
+loadLocalEnvFiles(ROOT_DIR);
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
 const ARTIFACTS_DIR = path.join(ROOT_DIR, "artifacts");
 const DEFAULT_WORKSPACE_DIR = path.join(ROOT_DIR, "generated", "pm-ai-target");
+const CODEX_ALLOWED_WORKSPACE_ROOT = process.env.CODEX_ALLOWED_WORKSPACE_ROOT
+  ? path.resolve(process.env.CODEX_ALLOWED_WORKSPACE_ROOT)
+  : "";
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -1006,6 +1010,12 @@ function maybeStartCodexRun({ input, runId, artifactBundle, prompt }) {
   }
 
   const workspacePath = resolveWorkspacePath(input.codexWorkspacePath || DEFAULT_WORKSPACE_DIR);
+  if (CODEX_ALLOWED_WORKSPACE_ROOT && !isPathInsideRoot(workspacePath, CODEX_ALLOWED_WORKSPACE_ROOT)) {
+    return {
+      status: "disabled",
+      reason: "Codex workspace path is outside the configured allowlist."
+    };
+  }
   ensureDir(workspacePath);
 
   const codexDir = path.join(artifactBundle.runDir, "codex");
@@ -1251,7 +1261,7 @@ async function readJsonBody(req) {
 function serveFile(res, requestedPath, allowedRoot) {
   const safePath = path.resolve(requestedPath);
   const safeRoot = path.resolve(allowedRoot);
-  if (!safePath.startsWith(safeRoot)) {
+  if (!isPathInsideRoot(safePath, safeRoot)) {
     return sendJson(res, 403, { error: "Access denied." });
   }
 
@@ -1261,17 +1271,83 @@ function serveFile(res, requestedPath, allowedRoot) {
 
   const extension = path.extname(safePath).toLowerCase();
   const mimeType = MIME_TYPES[extension] || "application/octet-stream";
-  res.writeHead(200, { "Content-Type": mimeType });
+  res.writeHead(200, {
+    ...buildBaseHeaders(),
+    "Content-Type": mimeType
+  });
   fs.createReadStream(safePath).pipe(res);
 }
 
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(statusCode, {
+    ...buildBaseHeaders(),
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json; charset=utf-8"
+  });
   res.end(JSON.stringify(payload, null, 2));
+}
+
+function buildBaseHeaders() {
+  return {
+    "Content-Security-Policy":
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  };
 }
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function loadLocalEnvFiles(rootDir) {
+  const merged = {};
+  for (const fileName of [".env", ".env.local"]) {
+    const filePath = path.join(rootDir, fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    const parsed = parseDotEnv(fs.readFileSync(filePath, "utf8"));
+    Object.assign(merged, parsed);
+  }
+
+  for (const [key, value] of Object.entries(merged)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function parseDotEnv(content) {
+  const parsed = {};
+  const lines = content.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    let value = line.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    parsed[key] = value;
+  }
+
+  return parsed;
 }
 
 function resolveWorkspacePath(value) {
@@ -1279,6 +1355,14 @@ function resolveWorkspacePath(value) {
     return DEFAULT_WORKSPACE_DIR;
   }
   return path.isAbsolute(value) ? value : path.resolve(ROOT_DIR, value);
+}
+
+function isPathInsideRoot(candidatePath, rootPath) {
+  const relativePath = path.relative(rootPath, candidatePath);
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
 }
 
 function buildRunId(productName) {
