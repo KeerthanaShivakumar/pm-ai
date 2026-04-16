@@ -14,6 +14,7 @@ import { cloneJson, logUi } from "./utils.js";
 import { renderCodeViewer, renderCodexJob, renderRunMeta, renderWorkflowShell } from "./render.js";
 
 const BUILD_PACK_STAGES = ["spec", "wireframe", "tickets", "codex"];
+const LIVE_STREAM_TAB = "__live_stream__";
 
 export function bootPmApp(doc = document) {
   const dom = getDom(doc);
@@ -44,7 +45,8 @@ function createState() {
       outputText: "",
       files: [],
       connection: "idle"
-    }
+    },
+    liveRenderScheduled: false
   };
 }
 
@@ -554,8 +556,16 @@ function syncCodexView(state, job) {
   state.codexView.files = Array.isArray(job.files) ? job.files : [];
   state.codexView.connection = job.status === "running" ? "streaming" : job.status;
 
-  if (!state.codexView.files.some((file) => file.path === state.codexView.selectedPath)) {
-    state.codexView.selectedPath = state.codexView.files[0]?.path || "";
+  if (!state.codexView.selectedPath) {
+    state.codexView.selectedPath = job.status === "running" ? LIVE_STREAM_TAB : state.codexView.files[0]?.path || LIVE_STREAM_TAB;
+    return;
+  }
+
+  if (
+    state.codexView.selectedPath !== LIVE_STREAM_TAB &&
+    !state.codexView.files.some((file) => file.path === state.codexView.selectedPath)
+  ) {
+    state.codexView.selectedPath = job.status === "running" ? LIVE_STREAM_TAB : state.codexView.files[0]?.path || LIVE_STREAM_TAB;
   }
 }
 
@@ -657,7 +667,94 @@ function updateLiveJobDelta(dom, state, payload) {
   job.status = "running";
 
   syncCodexView(state, job);
-  renderLiveCodexPanels(dom, state);
+  scheduleLiveCodeViewerRender(dom, state);
+}
+
+function scheduleLiveCodeViewerRender(dom, state) {
+  if (state.liveRenderScheduled) {
+    return;
+  }
+
+  state.liveRenderScheduled = true;
+  const view = dom.doc.defaultView;
+  const schedule = view?.requestAnimationFrame
+    ? view.requestAnimationFrame.bind(view)
+    : (callback) => setTimeout(callback, 32);
+
+  schedule(() => {
+    state.liveRenderScheduled = false;
+    patchLiveCodeViewer(dom, state);
+  });
+}
+
+function patchLiveCodeViewer(dom, state) {
+  const viewerCard = dom.doc.querySelector("#code-viewer-card");
+  if (!viewerCard || !state.workflow?.codexJob?.id) {
+    renderLiveCodexPanels(dom, state);
+    return;
+  }
+
+  const files = Array.isArray(state.codexView.files) ? state.codexView.files : [];
+  const selectedPath = resolveSelectedCodePath(state.workflow.codexJob, state.codexView);
+  const selectedFile = selectedPath === LIVE_STREAM_TAB
+    ? null
+    : files.find((file) => file.path === selectedPath) || null;
+  const fileSignature = buildCodeFileSignature(files);
+  const mode = files.length ? "files" : "raw";
+
+  if (
+    viewerCard.dataset.mode !== mode ||
+    viewerCard.dataset.fileSignature !== fileSignature ||
+    viewerCard.dataset.selectedPath !== selectedPath
+  ) {
+    renderLiveCodexPanels(dom, state);
+    return;
+  }
+
+  const countLabel = files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "streaming raw output";
+  const viewerContent = selectedFile?.content || state.codexView.outputText || "Waiting for streamed output...";
+  const primaryMeta = selectedFile?.path || "Raw stream";
+  const secondaryMeta = selectedFile?.language || state.workflow.codexJob.model;
+
+  const fileCount = viewerCard.querySelector('[data-role="file-count"]');
+  const primaryMetaNode = viewerCard.querySelector('[data-role="code-primary-meta"]');
+  const secondaryMetaNode = viewerCard.querySelector('[data-role="code-secondary-meta"]');
+  const codePane = viewerCard.querySelector('[data-role="code-pane"]');
+  const rawStreamLog = viewerCard.querySelector('[data-role="raw-stream-log"]');
+
+  if (fileCount) {
+    fileCount.textContent = countLabel;
+  }
+  if (primaryMetaNode) {
+    primaryMetaNode.textContent = primaryMeta;
+  }
+  if (secondaryMetaNode) {
+    secondaryMetaNode.textContent = secondaryMeta;
+  }
+  if (codePane) {
+    codePane.textContent = viewerContent;
+  }
+  if (rawStreamLog) {
+    rawStreamLog.textContent = state.codexView.outputText || "";
+  }
+}
+
+function resolveSelectedCodePath(job, codexView) {
+  if (!codexView.selectedPath) {
+    return job?.status === "running" ? LIVE_STREAM_TAB : codexView.files[0]?.path || LIVE_STREAM_TAB;
+  }
+  if (codexView.selectedPath === LIVE_STREAM_TAB) {
+    return LIVE_STREAM_TAB;
+  }
+  return codexView.files.some((file) => file.path === codexView.selectedPath)
+    ? codexView.selectedPath
+    : job?.status === "running"
+      ? LIVE_STREAM_TAB
+      : codexView.files[0]?.path || LIVE_STREAM_TAB;
+}
+
+function buildCodeFileSignature(files) {
+  return files.map((file) => `${file.path}:${file.language || ""}`).join("|");
 }
 
 async function refreshWorkflow(dom, state) {

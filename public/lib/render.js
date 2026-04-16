@@ -2,6 +2,7 @@ import { STAGE_ORDER } from "./config.js";
 import { escapeHtml, linesToText, timeLabel } from "./utils.js";
 
 const BUILD_PACK_STAGES = ["spec", "wireframe", "tickets", "codex"];
+const LIVE_STREAM_TAB = "__live_stream__";
 const WORKFLOW_SCREENS = [
   {
     key: "recommendation",
@@ -250,13 +251,23 @@ export function renderCodeViewer(job, codexView) {
   }
 
   const files = Array.isArray(codexView?.files) ? codexView.files : [];
-  const selectedPath = codexView?.selectedPath || files[0]?.path || "";
-  const selectedFile = files.find((file) => file.path === selectedPath) || files[0] || null;
+  const selectedPath = normalizeSelectedViewerPath(job, codexView, files);
+  const selectedFile = selectedPath === LIVE_STREAM_TAB
+    ? null
+    : files.find((file) => file.path === selectedPath) || files[0] || null;
   const rawOutput = codexView?.outputText || job.outputText || "";
   const viewerContent = selectedFile?.content || rawOutput || "Waiting for streamed output...";
+  const fileSignature = buildFileSignature(files);
+  const fileCountLabel = files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "streaming raw output";
 
   return `
-    <article class="result-card code-viewer-card" id="code-viewer-card">
+    <article
+      class="result-card code-viewer-card"
+      id="code-viewer-card"
+      data-mode="${escapeHtml(files.length ? "files" : "raw")}"
+      data-file-signature="${escapeHtml(fileSignature)}"
+      data-selected-path="${escapeHtml(selectedPath)}"
+    >
       <div class="section-toolbar">
         <div>
           <h3>Live code viewer</h3>
@@ -264,14 +275,22 @@ export function renderCodeViewer(job, codexView) {
         </div>
         <div class="stage-meta">
           ${renderStatusChip(job.status)}
-          <span class="meta-pill">${escapeHtml(files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "streaming raw output")}</span>
+          <span class="meta-pill" data-role="file-count">${escapeHtml(fileCountLabel)}</span>
         </div>
       </div>
       ${
         files.length
           ? `
             <div class="code-viewer-shell">
-              <div class="code-file-list">
+              <div class="code-file-list" data-role="code-file-list">
+                <button
+                  type="button"
+                  class="code-file-tab ${selectedPath === LIVE_STREAM_TAB ? "active" : ""}"
+                  data-action="select-code-file"
+                  data-path="${LIVE_STREAM_TAB}"
+                >
+                  Live stream
+                </button>
                 ${files
                   .map(
                     (file) => `
@@ -289,20 +308,20 @@ export function renderCodeViewer(job, codexView) {
               </div>
               <div class="code-pane-shell">
                 <div class="code-pane-meta">
-                  <span>${escapeHtml(selectedFile?.path || "Raw output")}</span>
-                  ${selectedFile?.language ? `<span>${escapeHtml(selectedFile.language)}</span>` : ""}
+                  <span data-role="code-primary-meta">${escapeHtml(selectedFile?.path || "Raw stream")}</span>
+                  <span data-role="code-secondary-meta">${escapeHtml(selectedFile?.language || job.model)}</span>
                 </div>
-                <pre class="code-pane">${escapeHtml(viewerContent)}</pre>
+                <pre class="code-pane" data-role="code-pane">${escapeHtml(viewerContent)}</pre>
               </div>
             </div>
           `
           : `
             <div class="code-pane-shell raw-only">
               <div class="code-pane-meta">
-                <span>Raw stream</span>
-                <span>${escapeHtml(job.model)}</span>
+                <span data-role="code-primary-meta">Raw stream</span>
+                <span data-role="code-secondary-meta">${escapeHtml(job.model)}</span>
               </div>
-              <pre class="code-pane">${escapeHtml(viewerContent)}</pre>
+              <pre class="code-pane" data-role="code-pane">${escapeHtml(viewerContent)}</pre>
             </div>
           `
       }
@@ -311,13 +330,32 @@ export function renderCodeViewer(job, codexView) {
           ? `
             <details class="stream-raw">
               <summary>Raw stream</summary>
-              <pre class="job-log">${escapeHtml(rawOutput)}</pre>
+              <pre class="job-log" data-role="raw-stream-log">${escapeHtml(rawOutput)}</pre>
             </details>
           `
           : ""
       }
     </article>
   `;
+}
+
+function normalizeSelectedViewerPath(job, codexView, files) {
+  const selectedPath = codexView?.selectedPath || "";
+  if (!selectedPath) {
+    return job?.status === "running" ? LIVE_STREAM_TAB : files[0]?.path || LIVE_STREAM_TAB;
+  }
+  if (selectedPath === LIVE_STREAM_TAB) {
+    return LIVE_STREAM_TAB;
+  }
+  return files.some((file) => file.path === selectedPath)
+    ? selectedPath
+    : job?.status === "running"
+      ? LIVE_STREAM_TAB
+      : files[0]?.path || LIVE_STREAM_TAB;
+}
+
+function buildFileSignature(files) {
+  return files.map((file) => `${file.path}:${file.language || ""}`).join("|");
 }
 
 function renderStageNav(workflow, appState, stageKey) {
