@@ -301,6 +301,18 @@ function bindWorkflowActions(dom, state) {
       }
 
       if (action === "launch-codex") {
+        const codexStage = state.workflow?.stages?.codex;
+        if (!codexStage?.approved || codexStage.stale) {
+          showBanner(
+            dom.statusBanner,
+            codexStage?.stale
+              ? "Regenerate and re-approve the Codex stage before launching implementation."
+              : "Approve the Codex kickoff stage before launching implementation.",
+            true
+          );
+          return;
+        }
+
         if (state.activeStage === "codex") {
           await persistCurrentStageDraft(dom, state, "codex");
         }

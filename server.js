@@ -127,7 +127,11 @@ const server = http.createServer(async (req, res) => {
 
     return sendJson(res, 404, { error: "Route not found." });
   } catch (error) {
-    console.error(error);
+    if ((error.statusCode || 500) >= 500) {
+      console.error(error);
+    } else {
+      console.warn(`${req.method || "REQUEST"} ${req.url || ""} -> ${error.statusCode || 400}: ${error.publicMessage || error.message}`);
+    }
     return sendJson(res, error.statusCode || 500, {
       error: error.publicMessage || "Unexpected server error.",
       detail: error.message
