@@ -69,4 +69,3 @@ If Codex autorun is enabled, the same run folder also gets a `codex/` subdirecto
 - This MVP intentionally uses no external npm dependencies.
 - File uploads are read in the browser and merged into the appropriate textarea before submission.
 - The app is designed as a thin local prototype you can evolve into a fuller product workflow.
-# pm-ai
