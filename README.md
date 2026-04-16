@@ -1,3 +1,13 @@
+---
+title: PM.ai
+emoji: "🧭"
+colorFrom: orange
+colorTo: yellow
+sdk: docker
+app_port: 7860
+short_description: Tell it what you know, it tells you what to build, then builds it.
+---
+
 # PM.ai
 
 PM.ai is a lightweight local MVP for the idea: "Tell it what you know, it tells you what to build, then builds it."
