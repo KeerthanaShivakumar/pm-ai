@@ -13,10 +13,13 @@ import {
 import { cloneJson } from "./utils.js";
 import { renderCodeViewer, renderCodexJob, renderRunMeta, renderWorkflowShell } from "./render.js";
 
+const BUILD_PACK_STAGES = ["spec", "wireframe", "tickets", "codex"];
+
 export function bootPmApp(doc = document) {
   const dom = getDom(doc);
   const state = createState();
 
+  syncLayoutState(dom, state);
   bindFileImports(doc, dom.statusBanner);
   bindTopLevelActions(doc, dom, state);
   bindWorkflowActions(dom, state);
@@ -30,6 +33,8 @@ function createState() {
     health: null,
     workflow: null,
     activeStage: "opportunity",
+    screen: "intake",
+    lastWorkflowScreen: "recommendation",
     latestPrompt: "",
     jobStream: null,
     codexView: {
@@ -45,7 +50,9 @@ function createState() {
 function getDom(doc) {
   return {
     doc,
+    workspace: doc.querySelector("#workspace"),
     form: doc.querySelector("#pm-form"),
+    workflowPanel: doc.querySelector("#workflow-panel"),
     emptyState: doc.querySelector("#empty-state"),
     results: doc.querySelector("#results"),
     statusBanner: doc.querySelector("#status-banner"),
@@ -53,6 +60,7 @@ function getDom(doc) {
     runMeta: doc.querySelector("#run-meta"),
     samplePreset: doc.querySelector("#samplePreset"),
     sampleButton: doc.querySelector("#sample-button"),
+    resumeWorkflowButton: doc.querySelector("#resume-workflow-button"),
     clearButton: doc.querySelector("#clear-button"),
     runButton: doc.querySelector("#run-button")
   };
@@ -89,6 +97,14 @@ function bindTopLevelActions(doc, dom, state) {
     showBanner(dom.statusBanner, `Loaded the ${SAMPLE_DATASETS[dom.samplePreset.value].label} preset.`, false);
   });
 
+  dom.resumeWorkflowButton.addEventListener("click", () => {
+    if (!state.workflow) {
+      return;
+    }
+    state.screen = state.lastWorkflowScreen || "recommendation";
+    renderWorkflow(dom, state, state.workflow);
+  });
+
   dom.clearButton.addEventListener("click", () => {
     dom.form.reset();
     if (state.health?.suggestedCodexWorkspace) {
@@ -112,6 +128,7 @@ function bindTopLevelActions(doc, dom, state) {
       });
 
       state.activeStage = "opportunity";
+      state.screen = "recommendation";
       renderWorkflow(dom, state, workflow);
       showBanner(dom.statusBanner, "Workflow created. Review and approve the opportunity before moving downstream.", false);
     } catch (error) {
@@ -133,14 +150,31 @@ function bindWorkflowActions(dom, state) {
     const stageKey = actionTarget.dataset.stage || state.activeStage;
 
     try {
+      if (action === "open-screen") {
+        state.screen = actionTarget.dataset.screen || state.screen;
+        normalizeScreenState(state);
+        renderWorkflow(dom, state, state.workflow);
+        return;
+      }
+
+      if (action === "open-intake") {
+        state.lastWorkflowScreen = state.screen;
+        state.screen = "intake";
+        syncLayoutState(dom, state);
+        return;
+      }
+
       if (action === "open-stage") {
         state.activeStage = stageKey;
+        state.screen = screenForStage(stageKey);
+        normalizeScreenState(state);
         renderWorkflow(dom, state, state.workflow);
         return;
       }
 
       if (action === "select-code-file") {
         state.codexView.selectedPath = actionTarget.dataset.path || "";
+        state.screen = "live-build";
         renderLiveCodexPanels(dom, state);
         return;
       }
@@ -240,6 +274,7 @@ function bindWorkflowActions(dom, state) {
           { method: "POST" }
         );
         state.activeStage = stageKey;
+        state.screen = screenForStage(stageKey);
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, `${workflow.stages[stageKey].label} draft generated.`, false);
         return;
@@ -259,6 +294,7 @@ function bindWorkflowActions(dom, state) {
           { method: "POST" }
         );
         state.activeStage = nextStageKey(stageKey) || stageKey;
+        state.screen = screenAfterApproval(stageKey, workflow);
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, `${workflow.stages[stageKey].label} approved.`, false);
         return;
@@ -272,6 +308,8 @@ function bindWorkflowActions(dom, state) {
           `/api/workflows/${encodeURIComponent(state.workflow.workflowId)}/codex/run`,
           { method: "POST" }
         );
+        state.screen = "live-build";
+        state.activeStage = "codex";
         renderWorkflow(dom, state, workflow);
         showBanner(dom.statusBanner, "Codex kickoff launched.", false);
         return;
@@ -310,7 +348,12 @@ async function loadHealth(dom, state) {
 function renderWorkflow(dom, state, workflow) {
   state.workflow = workflow;
   state.latestPrompt = workflow?.stages?.codex?.approved?.prompt || workflow?.stages?.codex?.draft?.prompt || "";
+  normalizeScreenState(state);
+  if (state.screen !== "intake") {
+    state.lastWorkflowScreen = state.screen;
+  }
   syncCodexView(state, workflow.codexJob);
+  syncLayoutState(dom, state);
   dom.emptyState.classList.add("hidden");
   dom.results.classList.remove("hidden");
   dom.runMeta.innerHTML = renderRunMeta(workflow, state.activeStage);
@@ -393,6 +436,15 @@ function disconnectJobStream(state) {
   }
 }
 
+function syncLayoutState(dom, state) {
+  const intakeMode = state.screen === "intake" || !state.workflow;
+  dom.workspace.classList.toggle("mode-intake", intakeMode);
+  dom.workspace.classList.toggle("mode-workflow", !intakeMode);
+  dom.form.classList.toggle("hidden", !intakeMode);
+  dom.workflowPanel.classList.toggle("hidden", intakeMode);
+  dom.resumeWorkflowButton.classList.toggle("hidden", !state.workflow || !intakeMode);
+}
+
 function updateLiveJob(dom, state, job) {
   if (!state.workflow || !job) {
     return;
@@ -472,6 +524,56 @@ function setStageBusy(dom, stageKey, busy) {
 function nextStageKey(stageKey) {
   const index = STAGE_ORDER.indexOf(stageKey);
   return index >= 0 ? STAGE_ORDER[index + 1] || null : null;
+}
+
+function normalizeScreenState(state) {
+  if (!state.workflow) {
+    state.screen = "intake";
+    state.activeStage = "opportunity";
+    return;
+  }
+
+  if (state.screen === "recommendation") {
+    state.activeStage = "opportunity";
+    return;
+  }
+
+  if (state.screen === "build-pack") {
+    if (!BUILD_PACK_STAGES.includes(state.activeStage)) {
+      state.activeStage = firstBuildPackStage(state.workflow);
+    }
+    return;
+  }
+
+  if (state.screen === "live-build") {
+    state.activeStage = "codex";
+    return;
+  }
+
+  state.screen = screenForStage(state.activeStage);
+}
+
+function firstBuildPackStage(workflow) {
+  return (
+    BUILD_PACK_STAGES.find((stageKey) => workflow?.stages?.[stageKey]?.status !== "approved") ||
+    BUILD_PACK_STAGES[0]
+  );
+}
+
+function screenForStage(stageKey) {
+  return stageKey === "opportunity" ? "recommendation" : "build-pack";
+}
+
+function screenAfterApproval(stageKey, workflow) {
+  if (stageKey === "opportunity") {
+    return "build-pack";
+  }
+
+  if (stageKey === "codex" && workflow?.codexJob?.id) {
+    return "live-build";
+  }
+
+  return screenForStage(nextStageKey(stageKey) || stageKey);
 }
 
 function showBanner(statusBanner, message, isError) {

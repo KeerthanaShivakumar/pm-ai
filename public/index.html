@@ -21,17 +21,34 @@
           </div>
           <div class="hero-panel">
             <p class="hero-panel-label">Core loop</p>
+            <h2 class="hero-panel-title">From customer signal to shipped starter code.</h2>
             <ol class="loop-list">
-              <li>Upload customer interviews, feedback, and usage notes.</li>
-              <li>Generate one evidence-backed recommendation.</li>
-              <li>Ship a spec, wireframe brief, tickets, and a Codex kickoff.</li>
+              <li>
+                <span class="loop-step-title">1. Tell PM.ai what you know</span>
+                <span class="loop-step-copy">Upload interviews, feedback, usage notes, and implementation constraints.</span>
+              </li>
+              <li>
+                <span class="loop-step-title">2. Decide what to build next</span>
+                <span class="loop-step-copy">Surface one evidence-backed recommendation with traceable reasoning and tradeoffs.</span>
+              </li>
+              <li>
+                <span class="loop-step-title">3. Generate the build pack</span>
+                <span class="loop-step-copy">Turn the recommendation into an editable spec, wireframe brief, and scoped tickets.</span>
+              </li>
+              <li>
+                <span class="loop-step-title">4. Kick off implementation</span>
+                <span class="loop-step-copy">Launch Codex from the approved brief and stream the first code directly into the UI.</span>
+              </li>
             </ol>
+            <p class="hero-panel-note">This is the product moat: one loop from user pain to an engineering-ready starting point.</p>
           </div>
         </div>
       </section>
 
-      <section class="workspace">
-        <form id="pm-form" class="panel input-panel">
+      <div id="status-banner" class="status-banner hidden"></div>
+
+      <section id="workspace" class="workspace mode-intake">
+        <form id="pm-form" class="panel input-panel" data-screen="intake">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Input</p>
@@ -47,6 +64,7 @@
                 </select>
               </label>
               <button type="button" class="ghost-button" id="sample-button">Load preset</button>
+              <button type="button" class="ghost-button hidden" id="resume-workflow-button">Return to workflow</button>
               <button type="button" class="ghost-button" id="clear-button">Clear</button>
             </div>
           </div>
@@ -156,11 +174,11 @@
           </div>
         </form>
 
-        <section class="panel output-panel">
+        <section id="workflow-panel" class="panel output-panel" data-screen="workflow">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Output</p>
-              <h2>Approval workflow</h2>
+              <h2>Workflow screens</h2>
             </div>
             <div id="run-meta" class="meta-pills"></div>
           </div>
@@ -174,7 +192,6 @@
             </p>
           </div>
 
-          <div id="status-banner" class="status-banner hidden"></div>
           <div id="results" class="results hidden"></div>
         </section>
       </section>

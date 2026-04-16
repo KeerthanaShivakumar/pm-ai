@@ -1,11 +1,28 @@
 import { STAGE_ORDER } from "./config.js";
 import { escapeHtml, linesToText, timeLabel } from "./utils.js";
 
+const BUILD_PACK_STAGES = ["spec", "wireframe", "tickets", "codex"];
+const WORKFLOW_SCREENS = [
+  {
+    key: "recommendation",
+    label: "Recommendation",
+    description: "Choose what to build next"
+  },
+  {
+    key: "build-pack",
+    label: "Build Pack",
+    description: "Review the execution assets"
+  },
+  {
+    key: "live-build",
+    label: "Live Build",
+    description: "Watch the first code stream back"
+  }
+];
+
 export function renderWorkflowShell(appState) {
   const workflow = appState.workflow;
-  const activeStage = workflow?.stages?.[appState.activeStage] || workflow?.stages?.opportunity;
   const opportunity = preferredStageData(workflow, "opportunity");
-  const nextStage = firstOpenStage(workflow);
   const warningsHtml = Array.isArray(workflow?.warnings) && workflow.warnings.length
     ? `<ul class="warning-list">${workflow.warnings
         .map((warning) => `<li>${escapeHtml(warning)}</li>`)
@@ -13,44 +30,80 @@ export function renderWorkflowShell(appState) {
     : "";
 
   return `
-    <article class="result-card workflow-summary">
-      <div class="summary-top">
+    <article class="result-card workflow-frame">
+      <div class="section-toolbar">
         <div>
-          <p class="eyebrow">Workflow state</p>
+          <p class="eyebrow">Workflow</p>
           <h3>${escapeHtml(opportunity?.recommendedFeature?.title || "Recommendation pending")}</h3>
           <p>${escapeHtml(opportunity?.executiveSummary || "Start with the opportunity stage.")}</p>
         </div>
-        <div class="summary-metrics">
-          <div class="metric">
-            <span class="metric-label">Current stage</span>
-            <span class="metric-value">${escapeHtml(activeStage?.label || "Opportunity")}</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Next required action</span>
-            <span class="metric-value metric-compact">${escapeHtml(nextStage?.label || "Codex ready")}</span>
-          </div>
+        <div class="inline-actions">
+          <button type="button" class="ghost-button" data-action="open-intake">New intake</button>
         </div>
       </div>
       ${warningsHtml}
+      <div class="screen-tabs">
+        ${WORKFLOW_SCREENS.map((screen) => renderScreenTab(workflow, appState, screen)).join("")}
+      </div>
     </article>
-    <div class="workflow-layout">
-      <aside class="result-card stage-sidebar">
-        <h3>Stages</h3>
-        <div class="stage-list">
-          ${STAGE_ORDER.map((stageKey) => renderStageNav(workflow, appState, stageKey)).join("")}
-        </div>
-      </aside>
-      <section class="stage-main">
-        ${renderActiveStage(workflow, appState)}
+    ${renderWorkflowScreen(workflow, appState)}
+  `;
+}
+
+function renderWorkflowScreen(workflow, appState) {
+  if (appState.screen === "live-build") {
+    return `
+      <div class="screen-grid screen-grid-live">
+        <section class="screen-main">
+          ${renderLiveBuildPrimary(workflow, appState)}
+        </section>
+        <aside class="screen-aside">
+          <article class="result-card" id="codex-job-card">
+            ${renderCodexJob(workflow?.codexJob)}
+          </article>
+          ${renderArtifactsCard(workflow)}
+          ${renderHistoryCard(workflow)}
+        </aside>
+      </div>
+    `;
+  }
+
+  if (appState.screen === "build-pack") {
+    const stageKey = BUILD_PACK_STAGES.includes(appState.activeStage) ? appState.activeStage : firstBuildPackStage(workflow);
+    return `
+      <div class="screen-grid screen-grid-build">
+        <section class="screen-main">
+          <article class="result-card">
+            <div class="section-toolbar">
+              <div>
+                <p class="eyebrow">Build Pack</p>
+                <h3>Review each asset as its own screen</h3>
+              </div>
+              <p class="subtle-copy">Approve the spec, wireframe, tickets, and Codex brief in sequence.</p>
+            </div>
+            <div class="build-stage-tabs">
+              ${BUILD_PACK_STAGES.map((buildStageKey) => renderBuildStageTab(workflow, appState, buildStageKey)).join("")}
+            </div>
+          </article>
+          ${renderStageCard(workflow, stageKey)}
+        </section>
+        <aside class="screen-aside">
+          ${renderStageProgressCard(workflow, appState)}
+          ${renderArtifactsCard(workflow)}
+          ${renderHistoryCard(workflow)}
+        </aside>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="screen-grid screen-grid-recommendation">
+      <section class="screen-main">
+        ${renderStageCard(workflow, "opportunity")}
       </section>
-      <aside class="workflow-aside">
-        ${renderEvidenceCard(workflow)}
-        ${renderCodeViewer(workflow?.codexJob, appState.codexView)}
-        ${renderArtifactsCard(workflow)}
+      <aside class="screen-aside">
+        ${renderStageProgressCard(workflow, appState)}
         ${renderHistoryCard(workflow)}
-        <article class="result-card" id="codex-job-card">
-          ${renderCodexJob(workflow?.codexJob)}
-        </article>
       </aside>
     </div>
   `;
@@ -67,6 +120,85 @@ export function renderRunMeta(workflow, activeStage) {
         : `Stage: ${escapeHtml(workflow.stages[activeStage]?.label || activeStage)}`
     )
   ].join("");
+}
+
+function renderScreenTab(workflow, appState, screen) {
+  return `
+    <button
+      type="button"
+      class="screen-tab ${screen.key === appState.screen ? "active" : ""}"
+      data-action="open-screen"
+      data-screen="${screen.key}"
+    >
+      <strong>${escapeHtml(screen.label)}</strong>
+      <span>${escapeHtml(screen.description)}</span>
+      ${renderStatusChip(screenStatus(workflow, screen.key))}
+    </button>
+  `;
+}
+
+function renderBuildStageTab(workflow, appState, stageKey) {
+  const stage = workflow.stages[stageKey];
+  return `
+    <button
+      type="button"
+      class="build-stage-tab ${stageKey === appState.activeStage ? "active" : ""}"
+      data-action="open-stage"
+      data-stage="${stageKey}"
+    >
+      <strong>${escapeHtml(stage.label)}</strong>
+      ${renderStatusChip(stage.status)}
+    </button>
+  `;
+}
+
+function renderStageProgressCard(workflow, appState) {
+  return `
+    <article class="result-card">
+      <div class="section-toolbar">
+        <h3>Pipeline</h3>
+        <span class="subtle-copy">${escapeHtml(`${approvedStageCount(workflow)}/${STAGE_ORDER.length} approved`)}</span>
+      </div>
+      <div class="stage-list compact-stage-list">
+        ${STAGE_ORDER.map((stageKey) => renderStageNav(workflow, appState, stageKey)).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderLiveBuildPrimary(workflow, appState) {
+  const codexStage = workflow?.stages?.codex;
+  const codexReady = Boolean(codexStage?.approved) && !codexStage?.stale;
+
+  if (!workflow?.codexJob?.id) {
+    return `
+      <article class="result-card launchpad-card">
+        <div class="section-toolbar">
+          <div>
+            <p class="eyebrow">Live Build</p>
+            <h3>${escapeHtml(codexReady ? "Ready to start implementation" : "Codex is not ready yet")}</h3>
+          </div>
+          ${renderStatusChip(codexReady ? "ready" : screenStatus(workflow, "live-build"))}
+        </div>
+        <p>
+          ${
+            codexReady
+              ? "The approved Codex brief is ready. Launch this screen when you want the implementation stream to take over the UI."
+              : "Finish the build-pack approvals first. The live build screen stays focused on implementation output, not authoring."
+          }
+        </p>
+        <div class="inline-actions">
+          ${
+            codexReady
+              ? `<button type="button" class="primary-button secondary-tone" data-action="launch-codex" data-stage="codex">Launch Codex</button>`
+              : `<button type="button" class="ghost-button" data-action="open-screen" data-screen="build-pack">Open build pack</button>`
+          }
+        </div>
+      </article>
+    `;
+  }
+
+  return renderCodeViewer(workflow.codexJob, appState.codexView);
 }
 
 export function renderCodexJob(job) {
@@ -201,8 +333,8 @@ function renderStageNav(workflow, appState, stageKey) {
   `;
 }
 
-function renderActiveStage(workflow, appState) {
-  const stage = workflow.stages[appState.activeStage];
+function renderStageCard(workflow, stageKey) {
+  const stage = workflow.stages[stageKey];
   const stageData = stage.draft || stage.approved;
   const blockedText = stage.blockedBy.length
     ? `Approve ${stage.blockedBy.map((stageKey) => workflow.stages[stageKey]?.label || stageKey).join(", ")} before generating this stage.`
@@ -234,28 +366,28 @@ function renderActiveStage(workflow, appState) {
               <p>${escapeHtml(blockedText || "This stage is ready to generate.")}</p>
               ${
                 stage.status !== "blocked"
-                  ? `<button type="button" class="primary-button" data-action="generate-stage" data-stage="${appState.activeStage}">Generate ${escapeHtml(stage.label)}</button>`
+                  ? `<button type="button" class="primary-button" data-action="generate-stage" data-stage="${stageKey}">Generate ${escapeHtml(stage.label)}</button>`
                   : ""
               }
             </div>
           `
           : `
             <div class="stage-actions">
-              <button type="button" class="ghost-button" data-action="save-stage" data-stage="${appState.activeStage}">Save draft</button>
-              <button type="button" class="ghost-button" data-action="generate-stage" data-stage="${appState.activeStage}">Regenerate</button>
-              <button type="button" class="primary-button" data-action="approve-stage" data-stage="${appState.activeStage}">Approve ${escapeHtml(stage.label)}</button>
+              <button type="button" class="ghost-button" data-action="save-stage" data-stage="${stageKey}">Save draft</button>
+              <button type="button" class="ghost-button" data-action="generate-stage" data-stage="${stageKey}">Regenerate</button>
+              <button type="button" class="primary-button" data-action="approve-stage" data-stage="${stageKey}">Approve ${escapeHtml(stage.label)}</button>
               ${
-                appState.activeStage === "codex" && stage.approved && !stage.stale
+                stageKey === "codex" && stage.approved && !stage.stale
                   ? `<button type="button" class="primary-button secondary-tone" data-action="launch-codex" data-stage="codex">Launch Codex</button>`
                   : ""
               }
               ${
-                appState.activeStage === "codex" && appState.latestPrompt
+                stageKey === "codex" && stage.approved?.prompt
                   ? `<button type="button" class="ghost-button" data-action="copy-prompt" data-stage="codex">Copy prompt</button>`
                   : ""
               }
             </div>
-            ${renderStageEditor(appState.activeStage, stageData)}
+            ${renderStageEditor(stageKey, stageData)}
             ${renderStageHistory(stage)}
           `
       }
@@ -572,25 +704,6 @@ function renderCodexEditor(stageData) {
   `;
 }
 
-function renderEvidenceCard(workflow) {
-  const opportunity = preferredStageData(workflow, "opportunity");
-  return `
-    <article class="result-card">
-      <h3>Evidence</h3>
-      ${
-        opportunity?.evidence?.length
-          ? `<ul class="list">${opportunity.evidence
-              .map(
-                (item) =>
-                  `<li><strong>${escapeHtml(item.title)}</strong> <span>(${escapeHtml(item.source)})</span>: ${escapeHtml(item.detail)}</li>`
-              )
-              .join("")}</ul>`
-          : "<p>No evidence has been synthesized yet.</p>"
-      }
-    </article>
-  `;
-}
-
 function renderArtifactsCard(workflow) {
   return `
     <article class="result-card">
@@ -658,6 +771,45 @@ function preferredStageData(workflow, stageKey) {
 
 function firstOpenStage(workflow) {
   return STAGE_ORDER.map((stageKey) => workflow?.stages?.[stageKey]).find((stage) => stage?.status !== "approved") || null;
+}
+
+function firstBuildPackStage(workflow) {
+  return (
+    BUILD_PACK_STAGES.find((stageKey) => workflow?.stages?.[stageKey]?.status !== "approved") ||
+    BUILD_PACK_STAGES[0]
+  );
+}
+
+function approvedStageCount(workflow) {
+  return STAGE_ORDER.filter((stageKey) => workflow?.stages?.[stageKey]?.status === "approved").length;
+}
+
+function screenStatus(workflow, screenKey) {
+  if (screenKey === "recommendation") {
+    return workflow?.stages?.opportunity?.status || "ready";
+  }
+
+  if (screenKey === "live-build") {
+    if (workflow?.codexJob?.id) {
+      return workflow.codexJob.status;
+    }
+    return workflow?.stages?.codex?.approved ? "ready" : workflow?.stages?.codex?.status || "blocked";
+  }
+
+  const statuses = BUILD_PACK_STAGES.map((stageKey) => workflow?.stages?.[stageKey]?.status);
+  if (statuses.every((status) => status === "approved")) {
+    return "approved";
+  }
+  if (statuses.includes("stale")) {
+    return "stale";
+  }
+  if (statuses.includes("draft")) {
+    return "draft";
+  }
+  if (statuses.includes("blocked")) {
+    return "blocked";
+  }
+  return "ready";
 }
 
 function renderScore(label, value) {

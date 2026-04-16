@@ -140,6 +140,12 @@ h2 {
   text-transform: uppercase;
 }
 
+.hero-panel-title {
+  margin: 0.55rem 0 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
 .loop-list {
   margin: 0.9rem 0 0;
   padding-left: 1.15rem;
@@ -148,11 +154,42 @@ h2 {
   color: var(--ink);
 }
 
+.loop-list li {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.loop-step-title {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.loop-step-copy {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.hero-panel-note {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .workspace {
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.35fr);
   align-items: start;
+}
+
+.workspace.mode-intake {
+  grid-template-columns: minmax(0, 980px);
+  justify-content: center;
+}
+
+.workspace.mode-workflow {
+  grid-template-columns: 1fr;
 }
 
 .panel {
@@ -170,7 +207,7 @@ h2 {
 }
 
 .output-panel {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .section-heading,
@@ -365,6 +402,61 @@ textarea {
   gap: 1rem;
 }
 
+.workflow-frame {
+  display: grid;
+  gap: 1rem;
+}
+
+.screen-tabs,
+.build-stage-tabs {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.screen-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.build-stage-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.screen-tab,
+.build-stage-tab {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(55, 35, 23, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.screen-tab strong,
+.build-stage-tab strong {
+  font-size: 1rem;
+}
+
+.screen-tab span {
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.screen-tab .status-chip,
+.build-stage-tab .status-chip {
+  justify-self: start;
+}
+
+.screen-tab.active,
+.build-stage-tab.active {
+  border-color: rgba(31, 107, 102, 0.28);
+  background: rgba(31, 107, 102, 0.08);
+}
+
 .result-card {
   border-radius: var(--radius-lg);
   border: 1px solid rgba(55, 35, 23, 0.08);
@@ -385,16 +477,6 @@ textarea {
 .artifact-row p {
   margin: 0;
   line-height: 1.65;
-}
-
-.workflow-summary .summary-top {
-  align-items: stretch;
-}
-
-.summary-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-width: 18rem;
 }
 
 .metric,
@@ -431,16 +513,15 @@ textarea {
   font-size: 1rem;
 }
 
-.workflow-layout {
+.screen-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(220px, 0.65fr) minmax(0, 1.45fr) minmax(280px, 0.85fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.72fr);
   align-items: start;
 }
 
-.stage-sidebar,
-.stage-main,
-.workflow-aside {
+.screen-main,
+.screen-aside {
   display: grid;
   gap: 1rem;
 }
@@ -454,6 +535,15 @@ textarea {
 
 .compact-stack {
   gap: 0.55rem;
+}
+
+.compact-stage-list .stage-nav-item {
+  padding: 0.75rem 0.8rem;
+}
+
+.launchpad-card {
+  min-height: 22rem;
+  align-content: start;
 }
 
 .stage-nav-item {
@@ -796,15 +886,6 @@ textarea {
 }
 
 @media (max-width: 1320px) {
-  .workflow-layout {
-    grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
-  }
-
-  .workflow-aside {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .code-viewer-shell {
     grid-template-columns: 1fr;
   }
@@ -813,14 +894,14 @@ textarea {
 @media (max-width: 1100px) {
   .workspace,
   .hero-grid,
-  .workflow-layout,
+  .screen-grid,
   .editor-grid,
   .detail-grid,
-  .summary-metrics {
+  .screen-tabs {
     grid-template-columns: 1fr;
   }
 
-  .workflow-aside {
+  .build-stage-tabs {
     grid-template-columns: 1fr;
   }
 }
