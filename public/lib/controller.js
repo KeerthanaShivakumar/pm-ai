@@ -44,7 +44,9 @@ function createState() {
       selectedPath: "",
       outputText: "",
       files: [],
-      connection: "idle"
+      connection: "idle",
+      autoFollowCodePane: true,
+      autoFollowRawLog: true
     },
     liveRenderScheduled: false
   };
@@ -217,6 +219,9 @@ function bindWorkflowActions(dom, state) {
 
       if (action === "select-code-file") {
         state.codexView.selectedPath = actionTarget.dataset.path || "";
+        if (state.codexView.selectedPath === LIVE_STREAM_TAB) {
+          state.codexView.autoFollowCodePane = true;
+        }
         state.screen = "live-build";
         logUi("codex.file_selected", {
           path: state.codexView.selectedPath
@@ -528,6 +533,7 @@ function renderWorkflow(dom, state, workflow) {
 }
 
 function renderLiveCodexPanels(dom, state) {
+  const scrollState = captureLiveViewerScroll(dom);
   const jobCard = dom.doc.querySelector("#codex-job-card");
   if (jobCard) {
     jobCard.innerHTML = renderCodexJob(state.workflow?.codexJob);
@@ -537,6 +543,8 @@ function renderLiveCodexPanels(dom, state) {
   if (viewerCard) {
     viewerCard.outerHTML = renderCodeViewer(state.workflow?.codexJob, state.codexView);
   }
+  bindLiveViewerScroll(dom, state);
+  restoreLiveViewerScroll(dom, state, scrollState);
 }
 
 function syncCodexView(state, job) {
@@ -546,7 +554,9 @@ function syncCodexView(state, job) {
       selectedPath: "",
       outputText: "",
       files: [],
-      connection: "idle"
+      connection: "idle",
+      autoFollowCodePane: true,
+      autoFollowRawLog: true
     };
     return;
   }
@@ -737,6 +747,7 @@ function patchLiveCodeViewer(dom, state) {
   if (rawStreamLog) {
     rawStreamLog.textContent = state.codexView.outputText || "";
   }
+  syncLiveViewerScroll(dom, state);
 }
 
 function resolveSelectedCodePath(job, codexView) {
@@ -755,6 +766,89 @@ function resolveSelectedCodePath(job, codexView) {
 
 function buildCodeFileSignature(files) {
   return files.map((file) => `${file.path}:${file.language || ""}`).join("|");
+}
+
+function bindLiveViewerScroll(dom, state) {
+  const viewerCard = dom.doc.querySelector("#code-viewer-card");
+  if (!viewerCard) {
+    return;
+  }
+
+  const codePane = viewerCard.querySelector('[data-role="code-pane"]');
+  if (codePane && codePane.dataset.scrollBound !== "1") {
+    codePane.addEventListener("scroll", () => {
+      state.codexView.autoFollowCodePane = isNearBottom(codePane);
+    });
+    codePane.dataset.scrollBound = "1";
+  }
+
+  const rawStreamLog = viewerCard.querySelector('[data-role="raw-stream-log"]');
+  if (rawStreamLog && rawStreamLog.dataset.scrollBound !== "1") {
+    rawStreamLog.addEventListener("scroll", () => {
+      state.codexView.autoFollowRawLog = isNearBottom(rawStreamLog);
+    });
+    rawStreamLog.dataset.scrollBound = "1";
+  }
+}
+
+function captureLiveViewerScroll(dom) {
+  const viewerCard = dom.doc.querySelector("#code-viewer-card");
+  if (!viewerCard) {
+    return null;
+  }
+
+  return {
+    codePaneAtBottom: isNearBottom(viewerCard.querySelector('[data-role="code-pane"]')),
+    rawLogAtBottom: isNearBottom(viewerCard.querySelector('[data-role="raw-stream-log"]'))
+  };
+}
+
+function restoreLiveViewerScroll(dom, state, scrollState) {
+  if (scrollState) {
+    if (scrollState.codePaneAtBottom) {
+      state.codexView.autoFollowCodePane = true;
+    }
+    if (scrollState.rawLogAtBottom) {
+      state.codexView.autoFollowRawLog = true;
+    }
+  }
+  syncLiveViewerScroll(dom, state, { force: !scrollState });
+}
+
+function syncLiveViewerScroll(dom, state, options = {}) {
+  const viewerCard = dom.doc.querySelector("#code-viewer-card");
+  if (!viewerCard) {
+    return;
+  }
+
+  const shouldFollowCodePane =
+    options.force ||
+    (state.codexView.selectedPath === LIVE_STREAM_TAB && state.codexView.autoFollowCodePane);
+  const shouldFollowRawLog = options.force || state.codexView.autoFollowRawLog;
+
+  const codePane = viewerCard.querySelector('[data-role="code-pane"]');
+  if (codePane && shouldFollowCodePane) {
+    scrollToBottom(codePane);
+  }
+
+  const rawStreamLog = viewerCard.querySelector('[data-role="raw-stream-log"]');
+  if (rawStreamLog && shouldFollowRawLog) {
+    scrollToBottom(rawStreamLog);
+  }
+}
+
+function scrollToBottom(element) {
+  if (!element) {
+    return;
+  }
+  element.scrollTop = element.scrollHeight;
+}
+
+function isNearBottom(element) {
+  if (!element) {
+    return false;
+  }
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 24;
 }
 
 async function refreshWorkflow(dom, state) {

@@ -72,8 +72,8 @@ function renderWorkflowScreen(workflow, appState) {
   if (appState.screen === "build-pack") {
     const stageKey = BUILD_PACK_STAGES.includes(appState.activeStage) ? appState.activeStage : firstBuildPackStage(workflow);
     return `
-      <div class="screen-grid screen-grid-build">
-        <section class="screen-main">
+	      <div class="screen-grid screen-grid-build">
+	        <section class="screen-main">
           <article class="result-card">
             <div class="section-toolbar">
               <div>
@@ -86,8 +86,8 @@ function renderWorkflowScreen(workflow, appState) {
               ${BUILD_PACK_STAGES.map((buildStageKey) => renderBuildStageTab(workflow, appState, buildStageKey)).join("")}
             </div>
           </article>
-          ${renderStageCard(workflow, stageKey)}
-        </section>
+	          ${renderStageCard(workflow, stageKey, appState)}
+	        </section>
         <aside class="screen-aside">
           ${renderStageProgressCard(workflow, appState)}
           ${renderArtifactsCard(workflow)}
@@ -100,7 +100,7 @@ function renderWorkflowScreen(workflow, appState) {
   return `
     <div class="screen-grid screen-grid-recommendation">
       <section class="screen-main">
-        ${renderStageCard(workflow, "opportunity")}
+	        ${renderStageCard(workflow, "opportunity", appState)}
       </section>
       <aside class="screen-aside">
         ${renderStageProgressCard(workflow, appState)}
@@ -170,6 +170,7 @@ function renderStageProgressCard(workflow, appState) {
 function renderLiveBuildPrimary(workflow, appState) {
   const codexStage = workflow?.stages?.codex;
   const codexReady = Boolean(codexStage?.approved) && !codexStage?.stale;
+  const autoLaunchEnabled = isCodexAutoLaunchEnabled(workflow, appState);
 
   if (!workflow?.codexJob?.id) {
     return `
@@ -181,20 +182,22 @@ function renderLiveBuildPrimary(workflow, appState) {
           </div>
           ${renderStatusChip(codexReady ? "ready" : screenStatus(workflow, "live-build"))}
         </div>
-        <p>
-          ${
-            codexReady
-              ? "The approved Codex brief is ready. Launch this screen when you want the implementation stream to take over the UI."
-              : "Finish the build-pack approvals first. The live build screen stays focused on implementation output, not authoring."
-          }
-        </p>
-        <div class="inline-actions">
-          ${
-            codexReady
-              ? `<button type="button" class="primary-button secondary-tone" data-action="launch-codex" data-stage="codex">Launch Codex</button>`
-              : `<button type="button" class="ghost-button" data-action="open-screen" data-screen="build-pack">Open build pack</button>`
-          }
-        </div>
+	        <p>
+	          ${
+	            codexReady
+	              ? autoLaunchEnabled
+	                ? "Auto-launch is enabled. Approving the final Codex brief starts implementation without a manual launch step."
+	                : "The approved Codex brief is ready. Launch this screen when you want the implementation stream to take over the UI."
+	              : "Finish the build-pack approvals first. The live build screen stays focused on implementation output, not authoring."
+	          }
+	        </p>
+	        <div class="inline-actions">
+	          ${
+	            codexReady && !autoLaunchEnabled
+	              ? `<button type="button" class="primary-button secondary-tone" data-action="launch-codex" data-stage="codex">Launch Codex</button>`
+	              : `<button type="button" class="ghost-button" data-action="open-screen" data-screen="build-pack">Open build pack</button>`
+	          }
+	        </div>
       </article>
     `;
   }
@@ -371,9 +374,10 @@ function renderStageNav(workflow, appState, stageKey) {
   `;
 }
 
-function renderStageCard(workflow, stageKey) {
+function renderStageCard(workflow, stageKey, appState) {
   const stage = workflow.stages[stageKey];
   const stageData = stage.draft || stage.approved;
+  const autoLaunchEnabled = stageKey === "codex" && isCodexAutoLaunchEnabled(workflow, appState);
   const blockedText = stage.blockedBy.length
     ? `Approve ${stage.blockedBy.map((stageKey) => workflow.stages[stageKey]?.label || stageKey).join(", ")} before generating this stage.`
     : "";
@@ -410,27 +414,40 @@ function renderStageCard(workflow, stageKey) {
             </div>
           `
           : `
-            <div class="stage-actions">
-              <button type="button" class="ghost-button" data-action="save-stage" data-stage="${stageKey}">Save draft</button>
-              ${renderStageRefreshAction(stageKey, stage)}
-              <button type="button" class="primary-button" data-action="approve-stage" data-stage="${stageKey}">Approve ${escapeHtml(stage.label)}</button>
-              ${
-                stageKey === "codex" && stage.approved && !stage.stale
-                  ? `<button type="button" class="primary-button secondary-tone" data-action="launch-codex" data-stage="codex">Launch Codex</button>`
-                  : ""
-              }
+	            <div class="stage-actions">
+	              <button type="button" class="ghost-button" data-action="save-stage" data-stage="${stageKey}">Save draft</button>
+	              ${renderStageRefreshAction(stageKey, stage)}
+	              <button type="button" class="primary-button" data-action="approve-stage" data-stage="${stageKey}">${escapeHtml(autoLaunchEnabled ? `Approve and auto-launch ${stage.label}` : `Approve ${stage.label}`)}</button>
+	              ${
+	                stageKey === "codex" && stage.approved && !stage.stale && !autoLaunchEnabled
+	                  ? `<button type="button" class="primary-button secondary-tone" data-action="launch-codex" data-stage="codex">Launch Codex</button>`
+	                  : ""
+	              }
               ${
                 stageKey === "codex" && stage.approved?.prompt
-                  ? `<button type="button" class="ghost-button" data-action="copy-prompt" data-stage="codex">Copy prompt</button>`
-                  : ""
-              }
-            </div>
-            ${renderStageEditor(stageKey, stageData)}
-            ${renderStageHistory(stage)}
-          `
-      }
-    </article>
-  `;
+	                  ? `<button type="button" class="ghost-button" data-action="copy-prompt" data-stage="codex">Copy prompt</button>`
+	                  : ""
+	              }
+	            </div>
+	            ${
+	              autoLaunchEnabled
+	                ? `<p class="stage-note">Auto-launch is enabled for this workflow. Approving this stage starts live code generation automatically.</p>`
+	                : ""
+	            }
+	            ${renderStageEditor(stageKey, stageData)}
+	            ${renderStageHistory(stage)}
+	          `
+	      }
+	    </article>
+	  `;
+}
+
+function isCodexAutoLaunchEnabled(workflow, appState) {
+  return Boolean(
+    workflow?.input?.runCodex &&
+      appState?.health?.codexAutoRunEnabled &&
+      appState?.health?.mode === "openai"
+  );
 }
 
 function renderStageRefreshAction(stageKey, stage) {
