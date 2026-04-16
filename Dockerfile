@@ -9,6 +9,7 @@ ENV HOST=0.0.0.0
 
 COPY --chown=node:node package.json ./
 COPY --chown=node:node server.js ./
+COPY --chown=node:node server ./server
 COPY --chown=node:node public ./public
 COPY --chown=node:node README.md ./
 
