@@ -135,3 +135,6 @@ If the live coding step runs, the same run folder also gets a `codex/` subdirect
 - Structured logging is built in; no separate logging package is required.
 - File uploads are read in the browser and merged into the appropriate textarea before submission.
 - The app is designed as a thin local prototype you can evolve into a fuller product workflow.
+
+## Source of inspiration
+- Cursor for Product Managers - https://www.ycombinator.com/rfs#cursor-for-product-managers
